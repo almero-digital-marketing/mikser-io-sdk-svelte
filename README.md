@@ -1,6 +1,25 @@
 # mikser-io-sdk-svelte
 
-Svelte 5 (runes) and SvelteKit integration for a [mikser-io](https://github.com/almero-digital-marketing/mikser-io) server. Pairs with [`mikser-io-sdk-api`](https://github.com/almero-digital-marketing/mikser-io-sdk-api) — that package handles transport (HTTP + SSE); this one wraps it in Svelte idioms.
+**Wire a Svelte 5 / SvelteKit app to a [mikser-io](https://github.com/almero-digital-marketing/mikser-io) content backend in ~10 lines.** Content stays as `.md` and `.yml` files on disk — diffable, grep-able, copy-anywhere. The runes-backed reactives below give you live updates over SSE, typed access to layout-shaped front-matter, multilingual URL resolution, asset metadata, and semantic search.
+
+| What you get | Reads as |
+|---|---|
+| **Live content** | `const article = useDocument(() => id)` — `article.document` updates as the file changes |
+| **Live lists** | `const list = useDocuments(() => ({ filter, sort, fields }))` |
+| **Multilingual URLs** | `href('/about')` → `/en/about` or `/fr/a-propos` per locale |
+| **Hreflang + switchers** | `useAlternates({ route })` |
+| **Asset metadata** | `image('/assets/hero.jpg')` → `{ src, srcset, width, height, alt }` |
+| **Semantic search** | `useSimilar(store, () => query)` with built-in debounce + stale-discard |
+| **Live nav data** | `useMikserPages({ mapPage })` — for menus, sitemaps, search indexes |
+| **Build-time routes** | `generateMikserRoutes()` for SvelteKit's `entries()` prerender hook |
+
+**SvelteKit-friendly by default.** Mikser supplies the data, SvelteKit owns the routing — no programmatic router to displace. A catch-all `+page.svelte` with `useDocument` resolves the entity for the current URL; `entries()` enumerates which paths to prerender. The split matches SvelteKit's own conventions.
+
+**One mental model across every rendering shape** — pure Svelte SPA, hybrid SvelteKit (prerendered public + live `/admin` editor served via adapter-static's fallback), or mikser-rendered HTML with Svelte 5 `mount()`-ed islands. Same reactives, different surface. See [`examples/`](./examples) for the three patterns side-by-side.
+
+**Typed at the seam.** Pair with [`mikser-io-plugin-schemas`](https://github.com/almero-digital-marketing/mikser-io-plugin-schemas) to author Zod schemas alongside your content; `useDocument<{ meta: MetaByLayout<'article'> }>(() => id)` then carries the front-matter shape straight into your templates.
+
+Pairs with [`mikser-io-sdk-api`](https://github.com/almero-digital-marketing/mikser-io-sdk-api) — that package handles transport (HTTP + SSE); this one wraps it in Svelte idioms.
 
 ## Install
 
