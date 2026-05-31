@@ -21,7 +21,8 @@ import { useMikserClient } from './client.js'
 const DEFAULT_FILTER = { 'meta.published': true, 'meta.route': { $exists: true } }
 
 /**
- * Build-time route enumeration. One-shot client.list().
+ * Build-time route enumeration. Lists every matching catalog entity
+ * and applies the mapRoute callback.
  *
  *   // src/routes/[...path]/+page.server.js
  *   import { generateMikserRoutes } from 'mikser-io-sdk-svelte'
@@ -40,6 +41,9 @@ const DEFAULT_FILTER = { 'meta.published': true, 'meta.route': { $exists: true }
  * The mapRoute return shape is whatever the caller's `entries()` hook
  * expects — this helper just enumerates the catalog and applies the
  * mapper.
+ *
+ * Auto-paginates via sdk-api's listAll() — no manual limit, no silent
+ * truncation on large catalogs.
  */
 export async function generateMikserRoutes({
     client,
@@ -49,11 +53,7 @@ export async function generateMikserRoutes({
     if (!client)   throw new Error('generateMikserRoutes: { client } is required')
     if (!mapRoute) throw new Error('generateMikserRoutes: { mapRoute } is required')
 
-    const { items } = await client.list({
-        filter,
-        fields: ['id', 'meta'],
-        limit:  10_000,
-    })
+    const items = await client.listAll({ filter, fields: ['id', 'meta'] })
     return items.map(mapRoute)
 }
 
