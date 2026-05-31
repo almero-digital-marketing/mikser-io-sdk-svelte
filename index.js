@@ -12,6 +12,10 @@
 //   src/router.svelte.js        useMikserPages, generateMikserRoutes
 //   src/href.svelte.js          provideHrefIndex, useHref, useAlternates
 //   src/asset.svelte.js         provideAssetIndex, useAsset
+//   src/vector.svelte.js        setMikserVectorClient,
+//                               useMikserVectorClient, useSimilar
+//                               (semantic search; pairs with
+//                               mikser-io-sdk-vector)
 //
 // Modules with the .svelte.js suffix participate in Svelte 5's compiler
 // pipeline and may use $state / $effect / $derived runes. The plain
@@ -22,3 +26,8 @@ export { useDocument, useDocuments }           from './src/documents.svelte.js'
 export { useMikserPages, generateMikserRoutes } from './src/router.svelte.js'
 export { provideHrefIndex, useHref, useAlternates } from './src/href.svelte.js'
 export { provideAssetIndex, useAsset }         from './src/asset.svelte.js'
+export {
+    setMikserVectorClient,
+    useMikserVectorClient,
+    useSimilar,
+} from './src/vector.svelte.js'

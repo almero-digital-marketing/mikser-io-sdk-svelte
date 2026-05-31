@@ -1,6 +1,6 @@
 {
     "name": "mikser-io-sdk-svelte",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "Svelte 5 runes and SvelteKit integration for mikser-io",
     "type": "module",
     "main": "index.js",

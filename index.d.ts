@@ -238,3 +238,74 @@ export interface UseAssetResult {
 }
 
 export declare function useAsset(): UseAssetResult
+
+// ---------------------------------------------------------------------------
+// vector() — semantic search (pairs with mikser-io-sdk-vector)
+// ---------------------------------------------------------------------------
+
+/**
+ * Shape the vector client must conform to. Match the one returned by
+ * `createClient(...)` from `mikser-io-sdk-vector` — the framework SDK
+ * doesn't import that package directly (it's an optional runtime
+ * dependency), it just expects this surface.
+ */
+export interface MikserVectorClient {
+    vector(storeName: string, options?: { token?: string }): {
+        findSimilar(q: string, options?: { limit?: number }): Promise<{
+            results: Array<{ id: string; distance: number; data?: any }>
+        }>
+    }
+}
+
+/**
+ * Expose the vector client to descendants via Svelte's context API.
+ * Call from a top-level component (typically the root layout).
+ */
+export declare function setMikserVectorClient(client: MikserVectorClient): MikserVectorClient
+
+/**
+ * Read the configured vector client. useSimilar reads it for you;
+ * this is for ad-hoc calls.
+ */
+export declare function useMikserVectorClient(): MikserVectorClient
+
+export interface UseSimilarOptions {
+    /** Override the context client. Rare. */
+    client?: MikserVectorClient
+    /** Max hits per request. Default 5. */
+    limit?: number
+    /** ms to wait after the last query change before firing. Default 200. 0 = fire immediately. */
+    debounce?: number
+    /** Skip the request when the trimmed query is shorter than this. Default 1. */
+    minLength?: number
+}
+
+export interface SimilarHit<T = unknown> {
+    id: string
+    distance: number
+    data?: T
+}
+
+export interface UseSimilarResult<T = unknown> {
+    /** Latest results. Empty array before the first response. */
+    readonly results: SimilarHit<T>[]
+    /** True while a request is in flight (not while debouncing). */
+    readonly loading: boolean
+    /** Populated when findSimilar() rejects. */
+    readonly error:   unknown
+    /** Force a fresh request against the current query. */
+    refresh(): void
+}
+
+/**
+ * Live semantic search reactive. `getQuery` is typically a getter
+ * (`() => query`) so the effect tracks the rune; a plain string also
+ * works but won't re-fire. Re-fires the search whenever the upstream
+ * query changes, debounced. Stale responses are discarded — only the
+ * most recently-issued query's response can update `results`.
+ */
+export declare function useSimilar<T = unknown>(
+    storeName: string,
+    getQuery: string | (() => string),
+    options?: UseSimilarOptions,
+): UseSimilarResult<T>

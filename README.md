@@ -62,6 +62,8 @@ Peer deps: `svelte` ^5.
 | `provideHrefIndex(options?)` + `useHref(lang?)` | Multilingual href abstraction — logical references resolve to per-locale URLs. |
 | `useAlternates({ route, languages? })` | Alternates for hreflang tags and language switchers. |
 | `provideAssetIndex(options?)` + `useAsset()` | Resolve asset references to URL + dimensions + srcset. |
+| `setMikserVectorClient(client)` + `useMikserVectorClient()` | Bridges `mikser-io-sdk-vector` into Svelte context. |
+| `useSimilar<T>(store, getQuery, options?)` | Live semantic search with debounce + stale-result discard. |
 
 ## Reactivity model — read this first
 
@@ -239,6 +241,71 @@ In both cases the current page's own language is excluded from `alternates` (it'
 ```
 
 `image()` returns `{ src, width, height, srcset, alt }` — Svelte uses lowercase HTML attribute names, so `srcset` not `srcSet`. `asset()` returns the full record (`url` + dimensions + raw `meta`). Both return `null` for unresolved references, so branch on that.
+
+## Semantic search — `setMikserVectorClient` + `useSimilar`
+
+Bridges `mikser-io-sdk-vector` into Svelte. Separate context slot from `setMikserClient` so projects without semantic search don't have to install the vector package. `useSimilar` handles debounce + stale-result discard so a fast-typing user doesn't see older results clobber newer ones.
+
+```svelte
+<!-- src/routes/+layout.svelte -->
+<script>
+    import { setMikserClient, setMikserVectorClient } from 'mikser-io-sdk-svelte'
+    import { createClient } from 'mikser-io-sdk-api'
+    import { createClient as createVectorClient } from 'mikser-io-sdk-vector'
+    import { PUBLIC_MIKSER_URL } from '$env/static/public'
+
+    setMikserClient(createClient({ url: PUBLIC_MIKSER_URL }).entities('public'))
+    setMikserVectorClient(createVectorClient({ baseUrl: PUBLIC_MIKSER_URL }))
+
+    let { children } = $props()
+</script>
+
+{@render children()}
+```
+
+```svelte
+<!-- src/lib/SearchBox.svelte -->
+<script>
+    import { useSimilar } from 'mikser-io-sdk-svelte'
+
+    let query = $state('')
+    const search = useSimilar('documents', () => query, {
+        limit:     10,
+        debounce:  200,    // ms after the last keystroke before firing
+        minLength: 2,      // skip the request below this length
+    })
+</script>
+
+<input bind:value={query} placeholder="Search…" />
+{#if search.loading}<p>Searching…</p>{/if}
+<ul>
+    {#each search.results as hit (hit.id)}
+        <li>
+            <a href={hit.id}>{hit.data?.title}</a>
+            <small>distance: {hit.distance.toFixed(3)}</small>
+        </li>
+    {/each}
+</ul>
+```
+
+- **`search.results`** is reactive via the getter pattern (same as `useDocument`). Read it directly in templates.
+- **`search.loading`** is true only while a request is in flight, not during the debounce wait. Right for a spinner indicator.
+- **`search.error`** is populated when `findSimilar()` rejects.
+- **`search.refresh()`** forces a fresh request against the current query — useful after the vector store has been updated server-side.
+
+`mikser-io-sdk-vector` is an **optional** runtime dependency — this SDK doesn't import it. Install only if you use semantic search:
+
+```bash
+npm install mikser-io-sdk-vector
+```
+
+The hit shape is generic on the embedded payload:
+
+```ts
+type ProductHit = { title: string; sku: string; price: number }
+const search = useSimilar<ProductHit>('products', () => query)
+//        ↑ search.results[0].data is typed ProductHit
+```
 
 ## TypeScript
 
