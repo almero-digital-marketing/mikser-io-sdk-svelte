@@ -12,6 +12,7 @@
 //   src/router.svelte.js        useMikserPages, generateMikserRoutes
 //   src/href.svelte.js          provideHrefIndex, useHref, useAlternates
 //   src/asset.svelte.js         provideAssetIndex, useAsset
+//   src/status.svelte.js        useMikserStatus
 //   src/vector.svelte.js        setMikserVectorClient,
 //                               useMikserVectorClient, useSimilar
 //                               (semantic search; pairs with
@@ -26,6 +27,7 @@ export { useDocument, useDocuments }           from './src/documents.svelte.js'
 export { useMikserPages, generateMikserRoutes } from './src/router.svelte.js'
 export { provideHrefIndex, useHref, useAlternates } from './src/href.svelte.js'
 export { provideAssetIndex, useAsset }         from './src/asset.svelte.js'
+export { useMikserStatus }                     from './src/status.svelte.js'
 export {
     setMikserVectorClient,
     useMikserVectorClient,

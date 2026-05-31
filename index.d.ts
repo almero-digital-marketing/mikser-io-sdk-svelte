@@ -309,3 +309,32 @@ export declare function useSimilar<T = unknown>(
     getQuery: string | (() => string),
     options?: UseSimilarOptions,
 ): UseSimilarResult<T>
+
+export type MikserStatus = 'connecting' | 'ready' | 'unreachable'
+
+export interface UseMikserStatusOptions {
+    /** Override the registered client. Default: client from setMikserClient. */
+    client?: EntitiesClient
+    /** Deadline before falling back to 'unreachable'. Default: 5000 ms. */
+    timeoutMs?: number
+}
+
+export interface UseMikserStatusResult {
+    /** Current connection status. Reactive — Svelte tracks reads of this getter. */
+    readonly current: MikserStatus
+}
+
+/**
+ * Connection-status rune. Returns a reactive holder whose `.current`
+ * starts at 'connecting', moves to 'ready' on the first successful
+ * list() probe, and moves to 'unreachable' on probe failure or deadline
+ * timeout.
+ *
+ * One-shot: once `.current` leaves 'connecting' it does not flip back.
+ * For a live health signal, watch the `error` field of useDocuments instead.
+ *
+ * @example
+ *   const status = useMikserStatus()
+ *   {#if status.current === 'ready'} ... {/if}
+ */
+export declare function useMikserStatus(options?: UseMikserStatusOptions): UseMikserStatusResult
