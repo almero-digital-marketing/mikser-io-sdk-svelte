@@ -52,7 +52,8 @@ export function provideAssetIndex({
 }
 
 /**
- * Read the asset index. Returns `{ asset, image, index }`.
+ * Read the asset index. Returns an object with `asset`, `image`, and a
+ * reactive `index` getter.
  *
  *   <script>
  *     import { useAsset } from 'mikser-io-sdk-svelte'
@@ -66,7 +67,12 @@ export function provideAssetIndex({
  * for spreading onto an <img> in a Svelte template (Svelte uses
  * lowercase HTML attribute names, so `srcset` not `srcSet`).
  *
- * Returns null for unresolved refs.
+ * Both return null for unresolved refs.
+ *
+ * Destructuring `{ asset, image } = useAsset()` is safe — they're
+ * plain functions that close over the live index. Destructuring
+ * `{ index }` would snapshot it; keep the object reference instead if
+ * you need to read `.index` reactively.
  */
 export function useAsset() {
     const slot = getContext(ASSET_INDEX)

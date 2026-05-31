@@ -12,7 +12,7 @@
 import { useMikserClient } from './client.js'
 
 /**
- * Live single-document reactive. Resolves the doc by id and stays in
+ * Live single-document reactive. Resolves the document by id and stays in
  * sync with changes via client.live().
  *
  *   <script>
@@ -30,20 +30,20 @@ import { useMikserClient } from './client.js'
 export function useDocument(getId, { client: clientArg } = {}) {
     const client = clientArg ?? useMikserClient()
 
-    let doc      = $state.raw(null)
+    let document      = $state.raw(null)
     let loading  = $state(true)
     let error    = $state.raw(null)
 
     let refreshTick = $state(0)
 
     $effect(() => {
-        // Touch refreshTick so refresh() forces re-subscription
-        // eslint-disable-next-line no-unused-expressions
-        refreshTick
+        // Read refreshTick so refresh() forces re-subscription via the
+        // effect's dependency tracking.
+        void refreshTick
 
         const id = typeof getId === 'function' ? getId() : getId
         if (id == null || id === '') {
-            doc = null
+            document = null
             error = null
             loading = false
             return
@@ -55,7 +55,7 @@ export function useDocument(getId, { client: clientArg } = {}) {
         const dispose = client.live(
             { id },
             (items) => {
-                doc = items[0] ?? null
+                document = items[0] ?? null
                 loading = false
             },
             {
@@ -71,7 +71,7 @@ export function useDocument(getId, { client: clientArg } = {}) {
     })
 
     return {
-        get document() { return doc },
+        get document() { return document },
         get loading()  { return loading },
         get error()    { return error },
         refresh() { refreshTick++ },
@@ -91,7 +91,7 @@ export function useDocument(getId, { client: clientArg } = {}) {
  *     }))
  *   </script>
  *
- *   {#each list.documents as doc (doc.id)}…{/each}
+ *   {#each list.documents as document (document.id)}…{/each}
  *
  * `getQuery` can be a query object or a getter `() => ListQuery`.
  */
@@ -105,8 +105,9 @@ export function useDocuments(getQuery = () => ({}), { client: clientArg } = {}) 
     let refreshTick = $state(0)
 
     $effect(() => {
-        // eslint-disable-next-line no-unused-expressions
-        refreshTick
+        // Read refreshTick so refresh() forces re-subscription via the
+        // effect's dependency tracking.
+        void refreshTick
 
         const query = typeof getQuery === 'function' ? getQuery() : getQuery
         const { filter = {}, sort, fields, limit, skip } = query ?? {}

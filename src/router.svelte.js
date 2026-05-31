@@ -1,8 +1,8 @@
 // Routing helpers.
 //
-// SvelteKit owns routing via the filesystem — there's no programmatic
-// "createRouter" the way vue-router or react-router expose one. So the
-// integration shape here is different from the Vue / React SDKs:
+// SvelteKit owns routing via the filesystem, so this module doesn't
+// ship a programmatic router. Instead it exposes two helpers that fit
+// the SvelteKit way of working:
 //
 //   - generateMikserRoutes — async one-shot enumerator. Use from a
 //     SvelteKit `entries()` hook (in +page.server.js) for prerendering
@@ -32,7 +32,7 @@ const DEFAULT_FILTER = { 'meta.published': true, 'meta.route': { $exists: true }
  *   export async function entries() {
  *       const routes = await generateMikserRoutes({
  *           client,
- *           mapRoute: doc => ({ path: doc.meta.route.replace(/^\//, '') }),
+ *           mapRoute: document => ({ path: document.meta.route.replace(/^\//, '') }),
  *       })
  *       return routes
  *   }
@@ -63,7 +63,7 @@ export async function generateMikserRoutes({
  *   <script>
  *     import { useMikserPages } from 'mikser-io-sdk-svelte'
  *     const pages = useMikserPages({
- *         mapPage: doc => ({ id: doc.id, path: doc.meta.route, title: doc.meta.title }),
+ *         mapPage: document => ({ id: document.id, path: document.meta.route, title: document.meta.title }),
  *     })
  *   </script>
  *
@@ -95,8 +95,8 @@ export function useMikserPages({
 
         const dispose = client.live(
             filter,
-            (docs) => {
-                items = docs.map(mapPage).filter(Boolean)
+            (documents) => {
+                items = documents.map(mapPage).filter(Boolean)
                 loading = false
             },
             {

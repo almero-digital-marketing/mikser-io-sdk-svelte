@@ -82,7 +82,7 @@ export interface GenerateMikserRoutesOptions<R = unknown> {
     /** Default: `meta.published: true` + `meta.route` exists. */
     filter?: Filter
     /** Mapper applied to each catalog hit. Return shape is caller-defined. */
-    mapRoute: (doc: any) => R
+    mapRoute: (document: any) => R
 }
 
 /**
@@ -97,7 +97,7 @@ export declare function generateMikserRoutes<R = unknown>(
 export interface UseMikserPagesOptions<P = unknown> {
     client?: EntitiesClient
     filter?: Filter
-    mapPage: (doc: any) => P | null | undefined
+    mapPage: (document: any) => P | null | undefined
 }
 
 export interface UseMikserPagesResult<P = unknown> {
@@ -188,7 +188,7 @@ export interface UseAlternatesOptions {
 export interface UseAlternatesResult {
     /** Alternates excluding the current page's own language. */
     readonly alternates: Alternate[]
-    /** The matched current route, or null if no doc corresponds. */
+    /** The matched current route, or null if no document corresponds. */
     readonly current:    CurrentRoute | null
 }
 

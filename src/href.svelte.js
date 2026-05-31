@@ -1,9 +1,6 @@
 // Multilingual href() — abstract logical references (/about) from
-// deployed URLs (/en/about, /fr/a-propos). Mirror of the Vue / React
-// implementations, with Svelte 5 runes for live reactivity and
-// setContext / getContext for the index slot.
-//
-// .svelte.js extension required — uses $state.raw + $effect.
+// deployed URLs (/en/about, /fr/a-propos). The .svelte.js extension is
+// required because this module uses runes ($state, $effect, $derived).
 import { setContext, getContext } from 'svelte'
 import { useMikserClient } from './client.js'
 
@@ -22,7 +19,7 @@ const HREF_INDEX = Symbol('mikser-io.href-index')
  *
  * Front-matter convention:
  *   meta.href:  '/about'           (logical reference)
- *   meta.lang:  'en'               (which language this doc represents)
+ *   meta.lang:  'en'               (which language this document represents)
  *   meta.route: '/en/about'        (actual URL — what useHref returns)
  */
 export function provideHrefIndex({
@@ -36,13 +33,13 @@ export function provideHrefIndex({
     $effect(() => {
         const dispose = client.live(
             filter,
-            (docs) => {
+            (documents) => {
                 const next = {}
-                for (const doc of docs) {
-                    const ref = doc.meta?.href
+                for (const document of documents) {
+                    const ref = document.meta?.href
                     if (!ref) continue
-                    const lang = doc.meta?.lang ?? defaultLang
-                    const url  = doc.meta?.route ?? doc.meta?.destination ?? ref
+                    const lang = document.meta?.lang ?? defaultLang
+                    const url  = document.meta?.route ?? document.meta?.destination ?? ref
                     if (!next[ref]) next[ref] = {}
                     next[ref][lang] = url
                 }
@@ -62,7 +59,11 @@ export function provideHrefIndex({
 }
 
 /**
- * Read the href index. Returns `{ href, refFor, index }`.
+ * Read the href index. Returns an object with `href`, `refFor`, and a
+ * reactive `index` getter. **Do not destructure `index`** — that would
+ * snapshot it at the call site. Either keep the returned object
+ * (`const links = useHref(); links.index`) or read `href` / `refFor`
+ * directly, which are plain functions that close over the live index.
  *
  *   <script>
  *     import { useHref } from 'mikser-io-sdk-svelte'
@@ -150,31 +151,33 @@ export function useAlternates({ route, languages } = {}) {
     if (route == null) {
         throw new Error('useAlternates: { route } is required')
     }
-    const { href, refFor, index } = useHref()
+    // Hold onto the whole object — destructuring `index` would lose
+    // reactivity. `href` and `refFor` are safe to use directly because
+    // they close over the live index inside their function bodies.
+    const links = useHref()
 
     const current = $derived.by(() => {
         const path = typeof route === 'function' ? route() : route
         if (path == null) return null
-        const ref = refFor(path)
+        const ref = links.refFor(path)
         if (ref == null) return null
-        const entry = index[ref] ?? {}
+        const entry = links.index[ref] ?? {}
         const lang = Object.entries(entry).find(([, url]) => url === path)?.[0] ?? null
         return { lang, url: path, ref }
     })
 
     const alternates = $derived.by(() => {
-        const c = current
-        if (!c) return []
-        const entry = index[c.ref] ?? {}
+        if (!current) return []
+        const entry = links.index[current.ref] ?? {}
         const requested = typeof languages === 'function' ? languages() : languages
 
         if (requested && Array.isArray(requested)) {
             return requested
-                .filter(lang => lang !== c.lang)
-                .map(lang => ({ lang, url: href(c.ref, lang) }))
+                .filter(lang => lang !== current.lang)
+                .map(lang => ({ lang, url: links.href(current.ref, lang) }))
         }
         return Object.entries(entry)
-            .filter(([lang]) => lang !== c.lang && lang !== 'default')
+            .filter(([lang]) => lang !== current.lang && lang !== 'default')
             .map(([lang, url]) => ({ lang, url }))
     })
 

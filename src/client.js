@@ -15,8 +15,8 @@ export const MIKSER_CLIENT = Symbol('mikser-io.client')
  *   <script>
  *     import { setMikserClient } from 'mikser-io-sdk-svelte'
  *     import { createClient } from 'mikser-io-sdk-api'
- *     const docs = createClient({ url: PUBLIC_MIKSER_URL }).entities('public')
- *     setMikserClient(docs)
+ *     const documents = createClient({ url: PUBLIC_MIKSER_URL }).entities('public')
+ *     setMikserClient(documents)
  *   </script>
  */
 export function setMikserClient(client) {
