@@ -45,17 +45,10 @@ const DEFAULT_FILTER = { 'meta.published': true, 'meta.route': { $exists: true }
  * Auto-paginates via sdk-api's listAll() — no manual limit, no silent
  * truncation on large catalogs.
  */
-export async function generateMikserRoutes({
-    client,
-    filter = DEFAULT_FILTER,
-    mapRoute,
-} = {}) {
-    if (!client)   throw new Error('generateMikserRoutes: { client } is required')
-    if (!mapRoute) throw new Error('generateMikserRoutes: { mapRoute } is required')
-
-    const items = await client.listAll({ filter, fields: ['id', 'meta'] })
-    return items.map(mapRoute)
-}
+// Implementation lives in mikser-io-sdk-api so all three framework SDKs
+// share the same enumeration + filter defaults. Re-export here so
+// Svelte users still import it from their framework package.
+export { generateMikserRoutes } from 'mikser-io-sdk-api'
 
 /**
  * Live reactive array of page entries from the catalog.

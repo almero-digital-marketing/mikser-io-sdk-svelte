@@ -1,6 +1,7 @@
-// Asset / image reference resolution — same provider/use pattern as
-// href, scoped to asset entities.
+// Asset / image reference resolution — Svelte 5 reactive shell around
+// sdk-api's pure createAssetIndex.
 import { setContext, getContext } from 'svelte'
+import { createAssetIndex } from 'mikser-io-sdk-api'
 import { useMikserClient } from './client.js'
 
 const ASSET_INDEX = Symbol('mikser-io.asset-index')
@@ -20,29 +21,18 @@ export function provideAssetIndex({
     filter = { type: 'asset' },
 } = {}) {
     const client = clientArg ?? useMikserClient()
-    let index = $state.raw({})
+    let assets = $state.raw([])
 
     $effect(() => {
         const dispose = client.live(
             filter,
-            (assets) => {
-                const next = {}
-                for (const a of assets) {
-                    next[a.id] = {
-                        url:    a.meta?.destination ?? a.meta?.url ?? a.id,
-                        width:  a.meta?.width,
-                        height: a.meta?.height,
-                        srcset: a.meta?.srcset,
-                        alt:    a.meta?.alt,
-                        meta:   a.meta,
-                    }
-                }
-                index = next
-            },
+            (docs) => { assets = docs },
             { fields: ['id', 'meta'] },
         )
         return () => dispose?.()
     })
+
+    const index = $derived(createAssetIndex(assets))
 
     const slot = {
         get index() { return index },
@@ -83,19 +73,11 @@ export function useAsset() {
     }
 
     function asset(ref) {
-        return slot.index[ref] ?? null
+        return slot.index.asset(ref)
     }
 
     function image(ref) {
-        const a = slot.index[ref]
-        if (!a) return null
-        return {
-            src:    a.url,
-            width:  a.width,
-            height: a.height,
-            srcset: a.srcset,    // lowercase — Svelte template attr name
-            alt:    a.alt,
-        }
+        return slot.index.image(ref)
     }
 
     return {

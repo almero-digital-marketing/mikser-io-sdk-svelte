@@ -1,6 +1,6 @@
 {
     "name": "mikser-io-sdk-svelte",
-    "version": "0.4.4",
+    "version": "0.5.0",
     "description": "Svelte 5 runes and SvelteKit integration for mikser-io",
     "type": "module",
     "main": "index.js",
@@ -42,7 +42,7 @@
     },
     "homepage": "https://github.com/almero-digital-marketing/mikser-io-sdk-svelte#readme",
     "peerDependencies": {
-        "mikser-io-sdk-api": "^2.4.0",
+        "mikser-io-sdk-api": "^3.1.0",
         "svelte": "^5.0.0"
     }
 }
