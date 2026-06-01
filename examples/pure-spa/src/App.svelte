@@ -9,7 +9,7 @@
     import { viewForComponent, routeFor } from './route-mapping.js'
     import { router } from './router.svelte.js'
 
-    // 1. One client, one endpoint. initialUrl points at the static
+    // 1. One client, one endpoint. data.catalog points at the static
     //    snapshot the data plugin writes (out/data/sitemap.json) —
     //    that's the fast first-paint path for routes. After the
     //    snapshot lands the SDK opens a live SSE subscribe on the same
@@ -18,7 +18,7 @@
     //    static file plus the existing live channel.
     const MIKSER_URL = import.meta.env.VITE_MIKSER_URL || 'http://localhost:3001'
     const documents = createClient({ baseUrl: MIKSER_URL })
-        .entities('public', { initialUrl: '/data/sitemap.json' })
+        .entities('public', { data: { catalog: 'sitemap' } })
     setMikserClient(documents)
 
     // 2. Static routes — pages that aren't backed by a catalog document.

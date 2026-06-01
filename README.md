@@ -133,7 +133,7 @@ SvelteKit owns routing via the filesystem, so the SDK doesn't ship a programmati
 
 **When:** Editor UIs, admin dashboards, internal apps. SEO doesn't matter. You want the fastest dev loop and the lowest build complexity. In the SvelteKit world this is **SvelteKit with CSR-only output** (`export const prerender = false`) — every route is resolved at runtime from the live mikser catalog. (For Svelte without SvelteKit at all, see `examples/pure-spa`.)
 
-**How it works:** A catch-all SvelteKit route does the dispatch. `initialUrl` on the client points at the `data` plugin's static snapshot so first paint loads from disk (CDN-cacheable, no API roundtrip), then live SSE keeps the catalog current. The catch-all looks up the current path against the snapshot, then renders the matching view component.
+**How it works:** A catch-all SvelteKit route does the dispatch. `data.catalog` on the client points at the `data` plugin's static snapshot so first paint loads from disk (CDN-cacheable, no API roundtrip), then live SSE keeps the catalog current. The catch-all looks up the current path against the snapshot, then renders the matching view component.
 
 **`src/lib/mikser.js` — single client with snapshot URL:**
 
@@ -141,12 +141,12 @@ SvelteKit owns routing via the filesystem, so the SDK doesn't ship a programmati
 import { createClient } from 'mikser-io-sdk-api'
 import { PUBLIC_MIKSER_URL } from '$env/static/public'
 
-// `initialUrl` points at the static snapshot the data plugin writes
+// `data.catalog` points at the static snapshot the data plugin writes
 // (out/data/sitemap.json). The SDK loads it on first paint — fast,
 // CDN-cacheable, no API roundtrip — then opens a live SSE subscribe
 // on the same /public endpoint for incremental updates.
 export const documents = createClient({ baseUrl: PUBLIC_MIKSER_URL })
-    .entities('public', { initialUrl: '/data/sitemap.json' })
+    .entities('public', { data: { catalog: 'sitemap' } })
 ```
 
 **`src/routes/+layout.svelte` — register the client:**
@@ -174,7 +174,7 @@ export const documents = createClient({ baseUrl: PUBLIC_MIKSER_URL })
 
     const route = $derived('/' + (page.params.slug ?? ''))
 
-    // Look up the route in the catalog. With initialUrl set on the
+    // Look up the route in the catalog. With data.catalog set on the
     // client in $lib/mikser.js, the first list() consults the static
     // /data/sitemap.json snapshot before falling back to a fresh API
     // call — so the first paint matches by route without an API trip.
@@ -220,7 +220,7 @@ export const prerender = true
 
 // Enumerate every published, component-having document.
 // generateMikserRoutes calls listAll(), which consults the
-// `initialUrl` snapshot ($lib/mikser.js → /data/sitemap.json) before
+// `data.catalog` snapshot ($lib/mikser.js → /data/sitemap.json) before
 // falling back to a fresh list().
 export async function entries() {
     const routes = await generateMikserRoutes({
@@ -377,9 +377,9 @@ document.querySelectorAll('[id^="search-island"]').forEach(el => {
 
 **When:** A content catalog past the ~5k–10k route mark where loading every route into a snapshot at boot stops making sense — large blogs, e-commerce catalogs, knowledge bases, document archives.
 
-**The idea:** Stop enumerating routes. The SvelteKit catch-all already exists from scenario A; just drop `initialUrl` and use `useDocumentByRoute(path)` to resolve the document at navigation time. The api plugin's per-query disk cache turns each unique route into an on-demand static file: the first user hits mikser, subsequent users get the cached response served by the reverse proxy. Effectively per-route ISR with no extra config.
+**The idea:** Stop enumerating routes. The SvelteKit catch-all already exists from scenario A; just drop `data.catalog` and use `useDocumentByRoute(path)` to resolve the document at navigation time. The api plugin's per-query disk cache turns each unique route into an on-demand static file: the first user hits mikser, subsequent users get the cached response served by the reverse proxy. Effectively per-route ISR with no extra config.
 
-**`src/lib/mikser.js` (Mode 2)** — drop `initialUrl`:
+**`src/lib/mikser.js` (Mode 2)** — drop `data.catalog`:
 
 ```js
 import { createClient } from 'mikser-io-sdk-api'

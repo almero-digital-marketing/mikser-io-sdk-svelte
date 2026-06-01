@@ -3,7 +3,7 @@
     import { documents } from '$lib/mikser.js'
     import { viewForComponent, routeFor } from '$lib/route-mapping.js'
 
-    // One client. initialUrl in $lib/mikser.js points it at the static
+    // One client. data.catalog in $lib/mikser.js points it at the static
     // data-plugin snapshot, so the list below fills from disk on first
     // paint without an API roundtrip; live SSE keeps it current.
     setMikserClient(documents)

@@ -9,7 +9,7 @@ export const prerender = true
 
 // Enumerate every published document with a meta.component.
 // generateMikserRoutes calls listAll(), which consults the
-// initialUrl snapshot ($lib/mikser.js → /data/sitemap.json) before
+// data.catalog snapshot ($lib/mikser.js → /data/sitemap.json) before
 // falling back to a fresh list().
 export async function entries() {
     const routes = await generateMikserRoutes({

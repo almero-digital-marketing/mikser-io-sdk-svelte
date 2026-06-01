@@ -11,10 +11,10 @@ const url = (
     typeof import.meta !== 'undefined' && import.meta.env?.PUBLIC_MIKSER_URL
 ) || 'http://localhost:3001'
 
-// One client. initialUrl points at the static snapshot the data
+// One client. data.catalog points at the static snapshot the data
 // plugin writes (out/data/sitemap.json) — the SDK loads it on first
 // paint and listAll() during prerender consults it before falling
 // back to a fresh list() call. Live SSE keeps the runtime admin SPA
 // current.
 export const documents = createClient({ baseUrl: url })
-    .entities('public', { initialUrl: '/data/sitemap.json' })
+    .entities('public', { data: { catalog: 'sitemap' } })

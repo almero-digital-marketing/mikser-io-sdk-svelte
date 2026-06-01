@@ -15,7 +15,7 @@ For SvelteKit projects, the same shape works inside `src/routes/[...slug]/+page.
 
 - **One catch-all dispatch.** `App.svelte` matches the current path against a tiny `staticRoutes` table (just `/` → `Home`); anything else falls through to `DocumentResolver.svelte`.
 - **`useDocumentByRoute(() => router.path)`** in `DocumentResolver.svelte` — issues `GET /api/public/entities?meta.route=<currentPath>` and dispatches the matched document to the right view (`ArticleView` / `ProductView` / `LandingView` / `PageView`).
-- **No `initialUrl`, no `useMikserPages`, no `data.catalog.sitemap` block.** The catalog is the route table — there's no separate index to maintain or load.
+- **No `data.catalog`, no `useMikserPages`, no `data.catalog.sitemap` block.** The catalog is the route table — there's no separate index to maintain or load.
 - **Live updates via SSE.** `useDocumentByRoute` wraps `client.live()` underneath, so an edit to the currently-displayed document updates the page without a refresh — same DX as pure-spa, just at scale.
 - **`useDocuments` still works for known-shape queries** — the nav menu and Home's "Latest articles" list use it, with `fields` projections to keep the responses narrow.
 
@@ -80,7 +80,7 @@ If you're already familiar with [`examples/pure-spa`](../pure-spa), here's what 
 
 | | pure-spa (Scenario A) | dynamic-spa (Scenario D) |
 |---|---|---|
-| Client setup | `entities('public', { initialUrl: '/data/sitemap.json' })` | `entities('public')` — no snapshot |
+| Client setup | `entities('public', { data: { catalog: 'sitemap' } })` | `entities('public')` — no snapshot |
 | Routing | `useMikserPages` builds a live `pages.items[]` table | One catch-all `DocumentResolver` |
 | `route-mapping.js` | Has it, maps catalog entries to `{ path, id, component }` for the routes table | Doesn't exist — dispatch happens inline in DocumentResolver |
 | `mikser.config.js` | Has `data.catalog.sitemap` block | Can drop the block — no snapshot consumed |
