@@ -111,132 +111,351 @@ useDocument(() => entityId)
 
 The getter form lets the SDK's internal `$effect` track whatever rune state you read inside it, so the subscription re-establishes when that state changes. Passing a bare value captures a one-time snapshot.
 
-## SvelteKit routing
+## Scenarios — picking the right shape for your project
 
-SvelteKit owns routing via the filesystem, so the SDK doesn't ship a programmatic router. Two integration points cover the typical needs:
+Four common shapes. Each makes a different trade between SEO, build complexity, and catalog scale. Pick before you start; mixing them mid-project is painful.
 
-### Prerender every catalog route
+SvelteKit owns routing via the filesystem, so the SDK doesn't ship a programmatic router — the scenarios below differ mainly in *how* the catch-all `+page.svelte` resolves content and *which* SvelteKit pipeline produces the output.
+
+> ### 📦 Runnable starter projects
+>
+> Each scenario ships as a complete starter under [`examples/`](./examples) — full SvelteKit config, `package.json`, full source tree, its own README explaining how to run it. Clone and modify rather than translate the snippets below into project structure.
+>
+> | Folder | What's in it |
+> |---|---|
+> | **[`examples/mikser-content`](./examples/mikser-content)** | **The shared content server** — a standalone mikser project that supplies the catalog to the three Svelte apps below. Start it first. |
+> | **[`examples/pure-spa`](./examples/pure-spa)** (scenario A) | Vite + Svelte 5 (no SvelteKit) — a runtime-everything SPA pattern, rare but supported |
+> | **[`examples/hybrid-ssg`](./examples/hybrid-ssg)** (scenario B) | SvelteKit `entries()` + prerender, plus a live `/admin` SPA from one catalog |
+> | **[`examples/islands`](./examples/islands)** (scenario C) | Multi-entry Vite build, Svelte islands mounting onto mikser-rendered HTML |
+
+### A) Pure SPA — runtime everything, live everywhere
+
+**When:** Editor UIs, admin dashboards, internal apps. SEO doesn't matter. You want the fastest dev loop and the lowest build complexity. In the SvelteKit world this is **SvelteKit with CSR-only output** (`export const prerender = false`) — every route is resolved at runtime from the live mikser catalog. (For Svelte without SvelteKit at all, see `examples/pure-spa`.)
+
+**How it works:** A catch-all SvelteKit route does the dispatch. `initialUrl` on the client points at the `data` plugin's static snapshot so first paint loads from disk (CDN-cacheable, no API roundtrip), then live SSE keeps the catalog current. The catch-all looks up the current path against the snapshot, then renders the matching view component.
+
+**`src/lib/mikser.js` — single client with snapshot URL:**
 
 ```js
-// src/routes/[...path]/+page.server.js
-import { generateMikserRoutes } from 'mikser-io-sdk-svelte'
-import { client } from '$lib/mikser'
+import { createClient } from 'mikser-io-sdk-api'
+import { PUBLIC_MIKSER_URL } from '$env/static/public'
 
-export const prerender = true
-
-export async function entries() {
-    return generateMikserRoutes({
-        client,
-        mapRoute: document => ({ path: document.meta.route.replace(/^\//, '') }),
-    })
-}
-
-export async function load({ params }) {
-    // Resolve the entity for this path — use a list() with the
-    // matching meta.route, or look it up by id directly.
-}
+// `initialUrl` points at the static snapshot the data plugin writes
+// (out/data/sitemap.json). The SDK loads it on first paint — fast,
+// CDN-cacheable, no API roundtrip — then opens a live SSE subscribe
+// on the same /public endpoint for incremental updates.
+export const documents = createClient({ baseUrl: PUBLIC_MIKSER_URL })
+    .entities('public', { initialUrl: '/data/sitemap.json' })
 ```
 
-### Live navigation, sitemaps, menus
-
-For nav menus and sitemaps you want a **narrow** projection — the catalog can be large, and a `<nav>` only needs a handful of fields per entry. Instead of running a second API endpoint, point one client at the static `out/data/sitemap.json` snapshot the [`data` plugin's `catalog`](https://github.com/almero-digital-marketing/mikser-io) entry writes. The SDK loads it on first paint (CDN-cacheable, no API roundtrip), then opens a live SSE subscribe on the same `/public` endpoint for incremental updates.
+**`src/routes/+layout.svelte` — register the client:**
 
 ```svelte
 <script>
-    import { createClient } from 'mikser-io-sdk-api'
-    import { setMikserClient, useMikserPages } from 'mikser-io-sdk-svelte'
-
-    const documents = createClient({ baseUrl: PUBLIC_MIKSER_URL })
-        .entities('public', { initialUrl: '/data/sitemap.json' })
+    import { documents } from '$lib/mikser.js'
+    import { setMikserClient } from 'mikser-io-sdk-svelte'
     setMikserClient(documents)
-
-    const pages = useMikserPages({
-        mapPage: document => ({
-            id:    document.id,
-            path:  document.meta.route,
-            title: document.meta.title,
-            order: document.meta.nav_order ?? Infinity,
-        }),
-    })
+    let { children } = $props()
 </script>
 
-<nav>
-    {#each pages.items.sort((a, b) => a.order - b.order) as page (page.id)}
-        <a href={page.path}>{page.title}</a>
-    {/each}
-</nav>
+{@render children()}
 ```
 
-The server side is one `data.catalog` block on mikser:
-
-```js
-// mikser-content/mikser.config.js  (server side)
-{
-    plugins: ['documents', 'front-matter', 'plugin-schemas', 'data', 'api'],
-    data: {
-        catalog: {
-            // out/data/sitemap.json — every published, component-having
-            // document, projected to just the routing fields.
-            sitemap: {
-                query: e =>
-                    e.type === 'document' &&
-                    e.meta?.published &&
-                    e.meta?.component,
-                pick: ['id', 'destination', 'meta.component', 'meta.route', 'meta.title'],
-            },
-        },
-    },
-    api: {
-        endpoints: {
-            public: {
-                query: e => e.type === 'document' && e.meta?.published,
-                operations: ['list', 'subscribe'],
-                cache: true,
-            },
-        },
-    },
-}
-```
-
-The `data` plugin runs at finalize, writes one file per catalog entry under `out/data/`, served as a static asset by mikser's built-in handler. The `pick` projection is enforced server-side so the snapshot stays small. `query` lines up 1:1 with the `live()` filter the SDK opens after first paint — initial state matches what SSE will send.
-
-For the page-component dispatch, use a single catch-all SvelteKit route (`[...path]/+page.svelte`) that calls `useDocument` to resolve the entity for the current URL. Per-component views branch on `document.meta.component` — `layout` stays reserved for mikser's SSG render pipeline so the two never collide. See [mikser-io-sdk-api → `initialUrl`](https://github.com/almero-digital-marketing/mikser-io-sdk-api#initialurl--pair-with-the-data-plugin-for-fast-first-paint) for the client side, and [`examples/mikser-content/mikser.config.js`](./examples/mikser-content/mikser.config.js) for the full config in context.
-
-### Dynamic routes — for catalogs too big to enumerate
-
-The catch-all route above does a two-step lookup: list the catalog for `meta.route === currentPath`, then fetch the full doc by id. For catalogs past ~5–10k documents, that's the right shape from the start — and the SDK ships a one-liner for it. Drop `initialUrl` from your client, drop `useMikserPages`, and resolve the path in your catch-all view with `useDocumentByRoute`:
+**`src/routes/[...slug]/+page.svelte` — catch-all view dispatch:**
 
 ```svelte
-<!-- src/routes/[...slug]/+page.svelte -->
 <script>
     import { page } from '$app/state'
-    import { useDocumentByRoute } from 'mikser-io-sdk-svelte'
+    import { useDocuments } from 'mikser-io-sdk-svelte'
     import ArticleView from '$lib/views/ArticleView.svelte'
-    import ProductView from '$lib/views/ProductView.svelte'
     import PageView    from '$lib/views/PageView.svelte'
     import NotFound    from '$lib/views/NotFound.svelte'
 
-    const result = useDocumentByRoute(() => page.url.pathname)
-    const viewForComponent = { article: ArticleView, product: ProductView, page: PageView }
+    const route = $derived('/' + (page.params.slug ?? ''))
+
+    // Look up the route in the catalog. With initialUrl set on the
+    // client in $lib/mikser.js, the first list() consults the static
+    // /data/sitemap.json snapshot before falling back to a fresh API
+    // call — so the first paint matches by route without an API trip.
+    const list = useDocuments(() => ({
+        filter: { 'meta.route': route, 'meta.published': true },
+        fields: ['id', 'destination', 'meta.route', 'meta.component'],
+    }))
+
+    const viewForComponent = { article: ArticleView, page: PageView }
 </script>
 
-{#if result.loading}
-    <p>Loading…</p>
-{:else if result.document}
-    {@const View = viewForComponent[result.document.meta?.component] ?? PageView}
-    <View document={result.document} />
+{#if list.loading}
+    Loading…
+{:else if list.documents[0]}
+    {@const doc = list.documents[0]}
+    {@const View = viewForComponent[doc.meta?.component] ?? PageView}
+    <View id={doc.id} />
 {:else}
     <NotFound />
 {/if}
 ```
 
-`useDocumentByRoute` issues `GET /api/public/entities?meta.route=/en/about&meta.published=true&limit=1`. With `cache: true` on the public endpoint, mikser writes that response to disk; the standard nginx failover config (see [mikser-io's caching docs](https://github.com/almero-digital-marketing/mikser-io/blob/main/documentation/caching.md)) serves the file directly on subsequent requests. So:
+**Trade-offs:** Fastest to set up. Worst for SEO (the public-facing HTML is empty until JS loads). Initial boot pays the snapshot fetch (~50–200ms typical, CDN-cacheable).
+
+> **📦 Full starter project:** **[`examples/pure-spa`](./examples/pure-spa)** — Svelte 5 (no SvelteKit) runtime-everything pattern. The SvelteKit variant uses the same client + catch-all shape inside SvelteKit's routes/.
+
+---
+
+### B) Hybrid — SSG for public, SPA-with-live for editor
+
+**When:** Marketing sites, blogs, documentation, any content site that needs SEO. The typical agency project.
+
+**The idea:** SvelteKit's prerender pipeline handles the public side — `entries()` enumerates every published document, `load()` fetches the body, the build emits static HTML per route. A separate `/admin` SPA uses the live SDK (scenario A pattern) for editorial preview against the same mikser server.
+
+**`src/routes/[...slug]/+page.server.js` — prerender + per-route load:**
+
+```js
+import { generateMikserRoutes } from 'mikser-io-sdk-svelte'
+import { documents } from '$lib/mikser.js'
+import { routeFor } from '$lib/route-mapping.js'
+
+export const prerender = true
+
+// Enumerate every published, component-having document.
+// generateMikserRoutes calls listAll(), which consults the
+// `initialUrl` snapshot ($lib/mikser.js → /data/sitemap.json) before
+// falling back to a fresh list().
+export async function entries() {
+    const routes = await generateMikserRoutes({
+        client: documents,
+        mapRoute: document => {
+            const path = routeFor(document)
+            return path ? { slug: path.replace(/^\//, '') } : null
+        },
+    })
+    return routes.filter(r => r && r.slug !== '')
+}
+
+// Fetch the document for the matched path.
+export async function load({ params }) {
+    const target = '/' + params.slug
+    const { items } = await documents.list({
+        filter: {
+            $or: [
+                { 'meta.route': target },
+                { destination: { $regex: `^${target.replace(/\/$/, '')}(/index)?\\.html?$` } },
+            ],
+            'meta.published': true,
+        },
+        limit: 1,
+    })
+    return { document: items[0] || null }
+}
+```
+
+**`src/routes/[...slug]/+page.svelte` — server-rendered shell:**
+
+```svelte
+<script>
+    import { viewForComponent } from '$lib/route-mapping.js'
+    import PageView from '$lib/views/PageView.svelte'
+    let { data } = $props()
+    const View = $derived(viewForComponent[data.document?.meta?.component] ?? PageView)
+</script>
+
+{#if data.document}
+    <View document={data.document} />
+{:else}
+    <p>Not found.</p>
+{/if}
+```
+
+**`src/routes/admin/+page.svelte` — live editor SPA (scenario A pattern):**
+
+```svelte
+<script>
+    import { setMikserClient, useDocuments, useDocument } from 'mikser-io-sdk-svelte'
+    import { documents } from '$lib/mikser.js'
+    import { viewForComponent } from '$lib/route-mapping.js'
+
+    setMikserClient(documents)
+
+    let selectedId = $state(null)
+    const all = useDocuments(() => ({
+        filter: { 'meta.published': true, 'meta.component': { $exists: true } },
+        sort: { 'meta.route': 1 },
+        fields: ['id', 'destination', 'meta'],
+    }))
+    const selected = useDocument(() => selectedId)
+</script>
+
+<aside>
+    {#each all.documents as document (document.id)}
+        <button onclick={() => (selectedId = document.id)}>
+            {document.meta?.title}
+        </button>
+    {/each}
+</aside>
+<section>
+    {#if selected.document}
+        {@const View = viewForComponent[selected.document.meta?.component]}
+        <View document={selected.document} />
+    {/if}
+</section>
+```
+
+**Trade-offs:** SvelteKit handles two output modes from one codebase. Public side is SEO-correct, CDN-friendly. Editor stays live with SSE. Pre-build sequencing matters — mikser must be running when `vite build` invokes `entries()`.
+
+> **📦 Full starter project:** **[`examples/hybrid-ssg`](./examples/hybrid-ssg)** — `src/lib/mikser.js` is the load-bearing file, shared between catch-all prerender, root +page, and admin SPA.
+
+---
+
+### C) Mikser-rendered HTML + Svelte islands
+
+**When:** Content-heavy sites where most pages are pure content (mikser renders them perfectly) but a few features need interactivity (search box, contact form, filters, live counts).
+
+**The idea:** Mikser is responsible for the HTML. Svelte is just an enhancement layer that mounts onto specific DOM nodes the server-rendered HTML emits. No SvelteKit involved — the URLs are real URLs served as static files.
+
+**Public site:** `mikser build` produces `out/`. Deploy `out/` as static. The HTML includes mount points for the Svelte islands:
+
+```html
+<!-- documents/en/search.md → rendered via layouts/page.html.hbs -->
+<article>
+    <h1>{{meta.title}}</h1>
+    <div id="search-island" data-endpoint="public"></div>
+</article>
+```
+
+**Island bundle:** A tiny multi-entry Vite build, one entry per island. Each entry finds its mount node, reads `data-*` attributes for config, mounts a Svelte component:
+
+```js
+// src/islands/search.js
+import { mount } from 'svelte'
+import { createClient } from 'mikser-io-sdk-api'
+import { setMikserClient } from 'mikser-io-sdk-svelte'
+import Search from './Search.svelte'
+
+document.querySelectorAll('[id^="search-island"]').forEach(el => {
+    const documents = createClient({ baseUrl: '/' })   // same-origin
+        .entities(el.dataset.endpoint)
+    // setMikserClient must run inside the mount — Svelte context is
+    // component-scoped, not module-scoped.
+    mount(Search, {
+        target: el,
+        props: { client: documents },
+    })
+})
+```
+
+```svelte
+<!-- src/islands/Search.svelte -->
+<script>
+    import { setMikserClient, useDocuments } from 'mikser-io-sdk-svelte'
+    let { client } = $props()
+    setMikserClient(client)
+
+    let q = $state('')
+    const results = useDocuments(() => ({
+        filter: q ? { 'meta.title': { $regex: q, $options: 'i' } } : {},
+        fields: ['id', 'meta.title', 'meta.summary', 'meta.route'],
+        limit: 10,
+    }))
+</script>
+
+<input bind:value={q} placeholder="Search…" />
+<ul>
+    {#each results.documents as doc (doc.id)}
+        <li><a href={doc.meta?.route}>{doc.meta?.title}</a></li>
+    {/each}
+</ul>
+```
+
+**Trade-offs:** Best performance (static HTML + small Svelte bundle, lazy-loaded). Simplest deployment (just files). But SvelteKit is out of the picture — the URL structure is mikser's responsibility, and you don't get SvelteKit conveniences like `goto`, form actions, page transitions across the static pages.
+
+> **📦 Full starter project:** **[`examples/islands`](./examples/islands)** — search, booking, cart-counter islands plus a simulated mikser-rendered HTML page showing where they mount.
+
+---
+
+### D) Dynamic routes — for catalogs too big to enumerate
+
+**When:** A content catalog past the ~5k–10k route mark where loading every route into a snapshot at boot stops making sense — large blogs, e-commerce catalogs, knowledge bases, document archives.
+
+**The idea:** Stop enumerating routes. The SvelteKit catch-all already exists from scenario A; just drop `initialUrl` and use `useDocumentByRoute(path)` to resolve the document at navigation time. The api plugin's per-query disk cache turns each unique route into an on-demand static file: the first user hits mikser, subsequent users get the cached response served by the reverse proxy. Effectively per-route ISR with no extra config.
+
+**`src/lib/mikser.js` (Mode 2)** — drop `initialUrl`:
+
+```js
+import { createClient } from 'mikser-io-sdk-api'
+import { PUBLIC_MIKSER_URL } from '$env/static/public'
+
+export const documents = createClient({ baseUrl: PUBLIC_MIKSER_URL })
+    .entities('public')
+```
+
+Also remove the `data.catalog.sitemap` block from `mikser-content/mikser.config.js` — no snapshot to publish.
+
+**`src/routes/[...slug]/+page.svelte` (Mode 2)** — replace the inline two-step lookup with `useDocumentByRoute`:
+
+```svelte
+<script>
+    import { page } from '$app/state'
+    import { useDocumentByRoute } from 'mikser-io-sdk-svelte'
+    import ArticleView from '$lib/views/ArticleView.svelte'
+    import PageView    from '$lib/views/PageView.svelte'
+    import NotFound    from '$lib/views/NotFound.svelte'
+
+    const result = useDocumentByRoute(() => page.url.pathname)
+    const viewForComponent = { article: ArticleView, page: PageView }
+</script>
+
+{#if result.loading}
+    Loading…
+{:else if result.document}
+    {@const View = viewForComponent[result.document.meta?.component] ?? PageView}
+    <View id={result.document.id} />
+{:else}
+    <NotFound />
+{/if}
+```
+
+**How the caching works.** `useDocumentByRoute` issues `GET /api/public/entities?meta.route=/en/about&meta.published=true&limit=1`. With `cache: true` on the public endpoint, mikser writes that response to disk as a side effect. The standard nginx failover config (see [mikser-io's caching docs](https://github.com/almero-digital-marketing/mikser-io/blob/main/documentation/caching.md)) serves the file directly on subsequent requests:
 
 - **First visitor to a route:** SDK → mikser → response served + written to disk
 - **Every subsequent visitor:** SDK → proxy serves the cached file (mikser idle)
 - **Catalog change:** entire cache directory cleared, re-warms on demand
 
-Effectively per-route ISR — the cache is built by real user traffic. **When to pick this shape over the snapshot:** when `/data/sitemap.json` would be over ~1–2 MB or you have more than ~5k routes. The trade-off is one extra API roundtrip on the *first* visit to a cold route (warm thereafter).
+Effectively per-route ISR — the cache is built by real user traffic.
+
+**Trade-offs:** First paint on a cold route pays one API roundtrip — slower than scenario A's pre-loaded snapshot, faster than A's initial snapshot fetch for repeat visits to cached routes. Doesn't scale down well to small catalogs (you're paying the resolver tax for routes you could have enumerated for free) but scales up beautifully — works the same at 10k routes as at 10M.
+
+When to pick D over A: roughly when `/data/sitemap.json` would emit more than ~1–2 MB, or you have more than ~5k routes. The snapshot is dragging first paint down more than the resolver does.
+
+> **📦 No dedicated starter** — the diff from scenario A is small (drop `initialUrl`, swap the catch-all lookup for `useDocumentByRoute`). The [`examples/pure-spa`](./examples/pure-spa) starter is the right place to start; the [Claude plugin's SPA recipe](https://github.com/almero-digital-marketing/mikser-io-claude-plugin) shows both modes side-by-side.
+
+---
+
+### Picking between them
+
+| Question | A (SPA) | B (Hybrid SSG) | C (Islands) | D (Dynamic SPA) |
+|---|---|---|---|---|
+| Do you need SEO? | No | **Yes** | **Yes** | No |
+| Is most of the page interactive? | **Yes** | Maybe | No | **Yes** |
+| Is content mostly static? | No | Yes | **Yes** | No |
+| Editor + admin in same app? | **Yes** | Editor is the SPA half | Separate admin app | **Yes** |
+| Build complexity tolerance | Low | Medium | Low | Low |
+| Mikser plugins (post-pdf, post-mjml) used? | No | Maybe | **Yes** | No |
+| SvelteKit conventions used? | Yes (CSR) | **Yes** (prerender) | No — plain Vite islands | Yes (catch-all) |
+| Catalog size | < 5k routes | any | any | > 5k routes |
+
+**Rule of thumb for an agency client site:** start with **C** (islands) for the public site if the content is mostly static, **B** (hybrid SSG) if there's significant interactivity, **A** (pure SPA) only for the admin app. Pick **D** when A would otherwise be your choice but the catalog is past the snapshot ceiling. A/D and B/C often coexist in the same project — the admin is always SPA-shaped; the public face is the project-by-project decision.
+
+### When to use which function
+
+| Function | Best for | Avoid when |
+|---|---|---|
+| `client.list()` directly | Build-time (in `entries()` / `load()`), SSR (no live updates needed) | Inside components that need to react to changes |
+| `useDocument()` / `useDocuments()` | Components in any scenario | Plain JS files (use the SDK directly) |
+| `useDocumentByRoute()` | Scenario D catch-all view — resolve the current path to a document | Scenarios A/B (you have the entity id; use `useDocument`) |
+| `useMikserPages` | Live navigation menus, sitemaps, tag indexes in scenarios A/B/D | Scenario C (no SvelteKit context for nav) |
+| `live()` underneath all the rest | Always — the others wrap it | — |
+| `generateMikserRoutes` | Scenario B `entries()` hook | Scenarios A, C, D |
+| `useHref` + `useAsset` | Any scenario with Svelte components | Mikser-rendered HTML (use the render-href plugin server-side instead) |
 
 ## Multilingual `useHref` / `useAlternates`
 
