@@ -38,7 +38,7 @@ Peer deps: `svelte` ^5.
     import { createClient } from 'mikser-io-sdk-api'
     import { PUBLIC_MIKSER_URL } from '$env/static/public'
 
-    const documents = createClient({ url: PUBLIC_MIKSER_URL }).entities('public')
+    const documents = createClient({ baseUrl: PUBLIC_MIKSER_URL }).entities('public')
     setMikserClient(documents)
     provideHrefIndex({ defaultLang: 'en' })
     provideAssetIndex()
@@ -138,11 +138,23 @@ export async function load({ params }) {
 
 ### Live navigation, sitemaps, menus
 
+For nav menus and sitemaps you want a **narrow** projection — the catalog can be large, and a `<nav>` only needs a handful of fields per entry. The right pattern is two clients off the same root:
+
+- **`documents`** → the `public` endpoint, full content. Powers `useDocument` inside view components. Stays as the default via `setMikserClient`.
+- **`sitemap`** → a fields-projected endpoint exposed by mikser's api plugin. Powers `useMikserPages`. Because the endpoint sets `cache: true`, the response is also written to disk so a reverse proxy can fail over to the cached file when mikser is unreachable.
+
 ```svelte
 <script>
-    import { useMikserPages } from 'mikser-io-sdk-svelte'
+    import { createClient } from 'mikser-io-sdk-api'
+    import { setMikserClient, useMikserPages } from 'mikser-io-sdk-svelte'
+
+    const root = createClient({ baseUrl: PUBLIC_MIKSER_URL })
+    const documents = root.entities('public')
+    const sitemap   = root.entities('sitemap')
+    setMikserClient(documents)            // default for useDocument et al.
 
     const pages = useMikserPages({
+        client: sitemap,                  // narrow, cached, fail-safe
         mapPage: document => ({
             id:    document.id,
             path:  document.meta.route,
@@ -159,7 +171,7 @@ export async function load({ params }) {
 </nav>
 ```
 
-For the page-component dispatch, use a single catch-all SvelteKit route (`[...path]/+page.svelte`) that calls `useDocument` to resolve the entity for the current URL. Per-layout components branch on `document.meta.layout`.
+For the page-component dispatch, use a single catch-all SvelteKit route (`[...path]/+page.svelte`) that calls `useDocument` to resolve the entity for the current URL. Per-component views branch on `document.meta.component` — `layout` stays reserved for mikser's SSG render pipeline so the two never collide.
 
 ## Multilingual `useHref` / `useAlternates`
 
@@ -273,7 +285,7 @@ Bridges `mikser-io-sdk-vector` into Svelte. Separate context slot from `setMikse
     import { createClient as createVectorClient } from 'mikser-io-sdk-vector'
     import { PUBLIC_MIKSER_URL } from '$env/static/public'
 
-    setMikserClient(createClient({ url: PUBLIC_MIKSER_URL }).entities('public'))
+    setMikserClient(createClient({ baseUrl: PUBLIC_MIKSER_URL }).entities('public'))
     setMikserVectorClient(createVectorClient({ baseUrl: PUBLIC_MIKSER_URL }))
 
     let { children } = $props()
