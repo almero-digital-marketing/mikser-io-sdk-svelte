@@ -4,6 +4,7 @@
     const products = useDocuments(() => ({
         filter: { 'meta.component': 'product' },
         sort: { 'meta.title': 1 },
+        fields: ['id', 'route', 'meta.title', 'meta.price', 'meta.image'],
     }))
 </script>
 

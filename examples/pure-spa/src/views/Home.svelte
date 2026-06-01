@@ -4,6 +4,7 @@
     const featured = useDocuments(() => ({
         filter: { 'meta.featured': true },
         sort: { 'meta.date': -1 },
+        fields: ['id', 'route', 'meta.title', 'meta.summary'],
         limit: 6,
     }))
 </script>
