@@ -125,6 +125,7 @@ SvelteKit owns routing via the filesystem, so the SDK doesn't ship a programmati
 > |---|---|
 > | **[`examples/mikser-content`](./examples/mikser-content)** | **The shared content server** — a standalone mikser project that supplies the catalog to the three Svelte apps below. Start it first. |
 > | **[`examples/pure-spa`](./examples/pure-spa)** (scenario A) | Vite + Svelte 5 (no SvelteKit) — a runtime-everything SPA pattern, rare but supported |
+> | **[`examples/dynamic-spa`](./examples/dynamic-spa)** (scenario D) | Same shape as `pure-spa` but with a catch-all + `useDocumentByRoute` |
 > | **[`examples/hybrid-ssg`](./examples/hybrid-ssg)** (scenario B) | SvelteKit `entries()` + prerender, plus a live `/admin` SPA from one catalog |
 > | **[`examples/islands`](./examples/islands)** (scenario C) | Multi-entry Vite build, Svelte islands mounting onto mikser-rendered HTML |
 
@@ -426,7 +427,7 @@ Effectively per-route ISR — the cache is built by real user traffic.
 
 When to pick D over A: roughly when `/data/sitemap.json` would emit more than ~1–2 MB, or you have more than ~5k routes. The snapshot is dragging first paint down more than the resolver does.
 
-> **📦 No dedicated starter** — the diff from scenario A is small (drop `initialUrl`, swap the catch-all lookup for `useDocumentByRoute`). The [`examples/pure-spa`](./examples/pure-spa) starter is the right place to start; the [Claude plugin's SPA recipe](https://github.com/almero-digital-marketing/mikser-io-claude-plugin) shows both modes side-by-side.
+> **📦 Full starter project:** **[`examples/dynamic-spa`](./examples/dynamic-spa)** — plain Svelte 5 (no SvelteKit), parallels `pure-spa` but with the catch-all + `useDocumentByRoute` pattern. SvelteKit users get the same shape inside their `[...slug]/+page.svelte` — see the Scenario D section.
 
 ---
 
