@@ -1,24 +1,32 @@
 <script>
     import { setMikserClient, useDocuments, useDocument } from 'mikser-io-sdk-svelte'
-    import { client } from '$lib/mikser.js'
-    import { viewForLayout } from '$lib/route-mapping.js'
+    import { documents, sitemap } from '$lib/mikser.js'
+    import { viewForComponent, routeFor } from '$lib/route-mapping.js'
 
-    // The live editor uses the same client, but at runtime (no
-    // prerender). Subscriptions stay open via SSE.
-    setMikserClient(client)
+    // Register the documents client in component context — useDocument
+    // below reads from it. The sitemap client is passed explicitly to
+    // useDocuments below; no need to inject it.
+    setMikserClient(documents)
 
     let selectedId = $state(null)
 
-    const all = useDocuments(() => ({
-        filter: { 'meta.published': true, 'meta.route': { $exists: true } },
-        sort: { 'meta.route': 1 },
-        fields: ['id', 'route', 'meta'],
-    }))
+    // List from the sitemap (narrow, cached server-side for failover).
+    // Explicit { client: sitemap } so it doesn't inject documents from
+    // context.
+    const all = useDocuments(
+        () => ({
+            filter: { 'meta.published': true, 'meta.component': { $exists: true } },
+            sort: { 'meta.route': 1 },
+            fields: ['id', 'destination', 'meta'],
+        }),
+        { client: sitemap },
+    )
 
+    // Full document fetch — uses the documents client from context.
     const selected = useDocument(() => selectedId)
 
     const View = $derived(
-        viewForLayout[selected.document?.meta?.layout] ?? viewForLayout.page,
+        viewForComponent[selected.document?.meta?.component] ?? viewForComponent.page,
     )
 </script>
 
@@ -30,8 +38,8 @@
             {#each all.documents as document (document.id)}
                 <li class:selected={selectedId === document.id}>
                     <button onclick={() => (selectedId = document.id)}>
-                        {document.meta?.title ?? document.route}
-                        <small>{document.meta?.layout}</small>
+                        {document.meta?.title ?? routeFor(document)}
+                        <small>{document.meta?.component}</small>
                     </button>
                 </li>
             {/each}

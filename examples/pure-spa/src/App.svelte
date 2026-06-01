@@ -6,13 +6,20 @@
     import ArticleIndex from './views/ArticleIndex.svelte'
     import ProductIndex from './views/ProductIndex.svelte'
     import NotFound from './views/NotFound.svelte'
-    import { viewForLayout } from './route-mapping.js'
+    import { viewForComponent, routeFor } from './route-mapping.js'
     import { router } from './router.svelte.js'
 
-    // 1. Create the entities client and expose it via Svelte context.
+    // 1. Two clients, one root:
+    //      documents → full content fetch (useDocument inside views)
+    //      sitemap   → narrow router data via useMikserPages.
+    //                  Server-side cache: true means a reverse proxy
+    //                  fails over to disk when mikser is down,
+    //                  transparent to the SDK.
     const MIKSER_URL = import.meta.env.VITE_MIKSER_URL || 'http://localhost:3001'
-    const client = createClient({ url: MIKSER_URL }).entities('public')
-    setMikserClient(client)
+    const root = createClient({ baseUrl: MIKSER_URL })
+    const documents = root.entities('public')
+    const sitemap = root.entities('sitemap')
+    setMikserClient(documents)
 
     // 2. Static routes — pages that aren't backed by a catalog document.
     const staticRoutes = {
@@ -21,14 +28,19 @@
         '/products': ProductIndex,
     }
 
-    // 3. Live array of catalog routes, kept in sync via SSE.
+    // 3. Live array of catalog routes, kept in sync via SSE on sitemap.
     const pages = useMikserPages({
-        mapPage: document => ({
-            path: document.route,
-            id: document.id,
-            meta: document.meta,
-            layout: document.meta?.layout ?? 'page',
-        }),
+        client: sitemap,
+        mapPage: document => {
+            const path = routeFor(document)
+            if (!path) return null
+            return {
+                path,
+                id: document.id,
+                meta: document.meta,
+                component: document.meta?.component ?? 'page',
+            }
+        },
     })
 
     // 4. Resolve the current path. Static wins over dynamic.
@@ -37,10 +49,10 @@
         const Static = staticRoutes[path]
         if (Static) return { View: Static, props: {} }
 
-        const hit = pages.items.find(p => p.path === path)
+        const hit = pages.items.find(p => p && p.path === path)
         if (hit) {
             return {
-                View: viewForLayout[hit.layout] ?? viewForLayout.page,
+                View: viewForComponent[hit.component] ?? viewForComponent.page,
                 props: { id: hit.id, meta: hit.meta },
             }
         }

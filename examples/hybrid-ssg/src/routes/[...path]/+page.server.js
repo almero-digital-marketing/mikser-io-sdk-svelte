@@ -2,29 +2,41 @@
 // know which paths to prerender, then calls load() for each — both run
 // against the mikser catalog.
 import { generateMikserRoutes } from 'mikser-io-sdk-svelte'
-import { client } from '$lib/mikser.js'
+import { documents, sitemap } from '$lib/mikser.js'
+import { routeFor } from '$lib/route-mapping.js'
 
 export const prerender = true
 
-// Enumerate every published document with a meta.route. SvelteKit will then
-// invoke load() with params.path = document.route minus the leading slash.
+// Enumerate every published document with a meta.component (narrow
+// sitemap query). SvelteKit invokes load() for each with
+// params.path = the URL minus the leading slash.
 export async function entries() {
     const routes = await generateMikserRoutes({
-        client,
-        filter: { 'meta.published': true, 'meta.route': { $exists: true } },
-        mapRoute: document => ({ path: document.meta.route.replace(/^\//, '') }),
+        client: sitemap,
+        mapRoute: document => {
+            const path = routeFor(document)
+            return path ? { path: path.replace(/^\//, '') } : null
+        },
     })
     // The homepage is handled by src/routes/+page.svelte — drop the
     // empty path so we don't collide.
-    return routes.filter(r => r.path !== '')
+    return routes.filter(r => r && r.path !== '')
 }
 
-// Fetch the document for the matched path. params.path is the URL path
-// with the leading '/' stripped; convert back when querying.
+// Fetch the document for the matched path. params.path is the URL
+// path with the leading '/' stripped; convert back when querying.
+// Uses documents (full content) so the prerendered HTML bakes in
+// the body.
 export async function load({ params }) {
     const target = '/' + params.path
-    const { items } = await client.list({
-        filter: { 'meta.route': target, 'meta.published': true },
+    const { items } = await documents.list({
+        filter: {
+            $or: [
+                { 'meta.route': target },
+                { destination: { $regex: `^${target.replace(/\/$/, '')}(/index)?\\.html?$` } },
+            ],
+            'meta.published': true,
+        },
         limit: 1,
     })
     return { document: items[0] || null }

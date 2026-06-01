@@ -2,7 +2,7 @@
     import { useDocuments } from 'mikser-io-sdk-svelte'
 
     const articles = useDocuments(() => ({
-        filter: { 'meta.layout': 'article' },
+        filter: { 'meta.component': 'article' },
         sort: { 'meta.date': -1 },
         fields: ['id', 'route', 'meta'],
     }))

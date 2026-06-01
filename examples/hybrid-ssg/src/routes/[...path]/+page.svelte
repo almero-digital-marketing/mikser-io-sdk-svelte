@@ -1,11 +1,11 @@
 <script>
-    import { viewForLayout } from '$lib/route-mapping.js'
+    import { viewForComponent } from '$lib/route-mapping.js'
 
     let { data } = $props()
 
-    // Pick the right view by meta.layout, falling back to PageView.
+    // Pick the right view by meta.component, falling back to PageView.
     const View = $derived(
-        viewForLayout[data.document?.meta?.layout] ?? viewForLayout.page,
+        viewForComponent[data.document?.meta?.component] ?? viewForComponent.page,
     )
 </script>
 
