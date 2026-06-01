@@ -2,17 +2,18 @@
 // know which paths to prerender, then calls load() for each — both run
 // against the mikser catalog.
 import { generateMikserRoutes } from 'mikser-io-sdk-svelte'
-import { documents, sitemap } from '$lib/mikser.js'
+import { documents } from '$lib/mikser.js'
 import { routeFor } from '$lib/route-mapping.js'
 
 export const prerender = true
 
-// Enumerate every published document with a meta.component (narrow
-// sitemap query). SvelteKit invokes load() for each with
-// params.path = the URL minus the leading slash.
+// Enumerate every published document with a meta.component.
+// generateMikserRoutes calls listAll(), which consults the
+// initialUrl snapshot ($lib/mikser.js → /data/sitemap.json) before
+// falling back to a fresh list().
 export async function entries() {
     const routes = await generateMikserRoutes({
-        client: sitemap,
+        client: documents,
         mapRoute: document => {
             const path = routeFor(document)
             return path ? { path: path.replace(/^\//, '') } : null

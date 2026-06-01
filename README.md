@@ -138,23 +138,18 @@ export async function load({ params }) {
 
 ### Live navigation, sitemaps, menus
 
-For nav menus and sitemaps you want a **narrow** projection — the catalog can be large, and a `<nav>` only needs a handful of fields per entry. The right pattern is two clients off the same root:
-
-- **`documents`** → the `public` endpoint, full content. Powers `useDocument` inside view components. Stays as the default via `setMikserClient`.
-- **`sitemap`** → a fields-projected endpoint exposed by mikser's api plugin. Powers `useMikserPages`. Because the endpoint sets `cache: true`, the response is also written to disk so a reverse proxy can fail over to the cached file when mikser is unreachable.
+For nav menus and sitemaps you want a **narrow** projection — the catalog can be large, and a `<nav>` only needs a handful of fields per entry. Instead of running a second API endpoint, point one client at the static `out/data/sitemap.json` snapshot the [`data` plugin's `catalog`](https://github.com/almero-digital-marketing/mikser-io) entry writes. The SDK loads it on first paint (CDN-cacheable, no API roundtrip), then opens a live SSE subscribe on the same `/public` endpoint for incremental updates.
 
 ```svelte
 <script>
     import { createClient } from 'mikser-io-sdk-api'
     import { setMikserClient, useMikserPages } from 'mikser-io-sdk-svelte'
 
-    const root = createClient({ baseUrl: PUBLIC_MIKSER_URL })
-    const documents = root.entities('public')
-    const sitemap   = root.entities('sitemap')
-    setMikserClient(documents)            // default for useDocument et al.
+    const documents = createClient({ baseUrl: PUBLIC_MIKSER_URL })
+        .entities('public', { initialUrl: '/data/sitemap.json' })
+    setMikserClient(documents)
 
     const pages = useMikserPages({
-        client: sitemap,                  // narrow, cached, fail-safe
         mapPage: document => ({
             id:    document.id,
             path:  document.meta.route,

@@ -1,26 +1,20 @@
 <script>
     import { setMikserClient, useDocuments, useDocument } from 'mikser-io-sdk-svelte'
-    import { documents, sitemap } from '$lib/mikser.js'
+    import { documents } from '$lib/mikser.js'
     import { viewForComponent, routeFor } from '$lib/route-mapping.js'
 
-    // Register the documents client in component context — useDocument
-    // below reads from it. The sitemap client is passed explicitly to
-    // useDocuments below; no need to inject it.
+    // One client. initialUrl in $lib/mikser.js points it at the static
+    // data-plugin snapshot, so the list below fills from disk on first
+    // paint without an API roundtrip; live SSE keeps it current.
     setMikserClient(documents)
 
     let selectedId = $state(null)
 
-    // List from the sitemap (narrow, cached server-side for failover).
-    // Explicit { client: sitemap } so it doesn't inject documents from
-    // context.
-    const all = useDocuments(
-        () => ({
-            filter: { 'meta.published': true, 'meta.component': { $exists: true } },
-            sort: { 'meta.route': 1 },
-            fields: ['id', 'destination', 'meta'],
-        }),
-        { client: sitemap },
-    )
+    const all = useDocuments(() => ({
+        filter: { 'meta.published': true, 'meta.component': { $exists: true } },
+        sort:   { 'meta.route': 1 },
+        fields: ['id', 'destination', 'meta'],
+    }))
 
     // Full document fetch — uses the documents client from context.
     const selected = useDocument(() => selectedId)

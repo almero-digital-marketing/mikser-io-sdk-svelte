@@ -9,16 +9,16 @@
     import { viewForComponent, routeFor } from './route-mapping.js'
     import { router } from './router.svelte.js'
 
-    // 1. Two clients, one root:
-    //      documents → full content fetch (useDocument inside views)
-    //      sitemap   → narrow router data via useMikserPages.
-    //                  Server-side cache: true means a reverse proxy
-    //                  fails over to disk when mikser is down,
-    //                  transparent to the SDK.
+    // 1. One client, one endpoint. initialUrl points at the static
+    //    snapshot the data plugin writes (out/data/sitemap.json) —
+    //    that's the fast first-paint path for routes. After the
+    //    snapshot lands the SDK opens a live SSE subscribe on the same
+    //    /public endpoint for incremental updates. No second API
+    //    endpoint, no second cache file — just one CDN-cacheable
+    //    static file plus the existing live channel.
     const MIKSER_URL = import.meta.env.VITE_MIKSER_URL || 'http://localhost:3001'
-    const root = createClient({ baseUrl: MIKSER_URL })
-    const documents = root.entities('public')
-    const sitemap = root.entities('sitemap')
+    const documents = createClient({ baseUrl: MIKSER_URL })
+        .entities('public', { initialUrl: '/data/sitemap.json' })
     setMikserClient(documents)
 
     // 2. Static routes — pages that aren't backed by a catalog document.
@@ -28,9 +28,9 @@
         '/products': ProductIndex,
     }
 
-    // 3. Live array of catalog routes, kept in sync via SSE on sitemap.
+    // 3. Live array of catalog routes. Reads the default client set
+    //    above — initial fill from the snapshot, then SSE deltas.
     const pages = useMikserPages({
-        client: sitemap,
         mapPage: document => {
             const path = routeFor(document)
             if (!path) return null
