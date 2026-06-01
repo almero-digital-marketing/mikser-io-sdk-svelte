@@ -166,7 +166,40 @@ For nav menus and sitemaps you want a **narrow** projection — the catalog can 
 </nav>
 ```
 
-For the page-component dispatch, use a single catch-all SvelteKit route (`[...path]/+page.svelte`) that calls `useDocument` to resolve the entity for the current URL. Per-component views branch on `document.meta.component` — `layout` stays reserved for mikser's SSG render pipeline so the two never collide.
+The server side is one `data.catalog` block on mikser:
+
+```js
+// mikser-content/mikser.config.js  (server side)
+{
+    plugins: ['documents', 'front-matter', 'plugin-schemas', 'data', 'api'],
+    data: {
+        catalog: {
+            // out/data/sitemap.json — every published, component-having
+            // document, projected to just the routing fields.
+            sitemap: {
+                query: e =>
+                    e.type === 'document' &&
+                    e.meta?.published &&
+                    e.meta?.component,
+                pick: ['id', 'destination', 'meta'],
+            },
+        },
+    },
+    api: {
+        endpoints: {
+            public: {
+                query: e => e.type === 'document' && e.meta?.published,
+                operations: ['list', 'subscribe'],
+                cache: true,
+            },
+        },
+    },
+}
+```
+
+The `data` plugin runs at finalize, writes one file per catalog entry under `out/data/`, served as a static asset by mikser's built-in handler. The `pick` projection is enforced server-side so the snapshot stays small. `query` lines up 1:1 with the `live()` filter the SDK opens after first paint — initial state matches what SSE will send.
+
+For the page-component dispatch, use a single catch-all SvelteKit route (`[...path]/+page.svelte`) that calls `useDocument` to resolve the entity for the current URL. Per-component views branch on `document.meta.component` — `layout` stays reserved for mikser's SSG render pipeline so the two never collide. See [mikser-io-sdk-api → `initialUrl`](https://github.com/almero-digital-marketing/mikser-io-sdk-api#initialurl--pair-with-the-data-plugin-for-fast-first-paint) for the client side, and [`examples/mikser-content/mikser.config.js`](./examples/mikser-content/mikser.config.js) for the full config in context.
 
 ## Multilingual `useHref` / `useAlternates`
 
