@@ -76,6 +76,7 @@ Peer deps: `svelte` ^5.
 | `useMikserClient()` | Read the client. Useful for ad-hoc calls (`urlFor`, `render`). |
 | `useDocument<T>(getId, options?)` | Live single-document reactive. Pass `() => id` for re-subscription on change. |
 | `useDocuments<T>(getQuery, options?)` | Live list reactive. Pass `() => query` for re-subscription on change. |
+| `useDocumentByRoute<T>(getPath, options?)` | Live single-document lookup by URL route — for the catch-all `[...path]/+page.svelte` in dynamic-routes setups. See "Dynamic routes" below. |
 | `useMikserPages({ mapPage })` | Live reactive array of page entries — menus, sitemaps, search. |
 | `generateMikserRoutes({ mapRoute })` | Async one-shot enumerator — for SvelteKit's `entries()` prerender hook. |
 | `provideHrefIndex(options?)` + `useHref(lang?)` | Multilingual href abstraction — logical references resolve to per-locale URLs. |
@@ -200,6 +201,42 @@ The server side is one `data.catalog` block on mikser:
 The `data` plugin runs at finalize, writes one file per catalog entry under `out/data/`, served as a static asset by mikser's built-in handler. The `pick` projection is enforced server-side so the snapshot stays small. `query` lines up 1:1 with the `live()` filter the SDK opens after first paint — initial state matches what SSE will send.
 
 For the page-component dispatch, use a single catch-all SvelteKit route (`[...path]/+page.svelte`) that calls `useDocument` to resolve the entity for the current URL. Per-component views branch on `document.meta.component` — `layout` stays reserved for mikser's SSG render pipeline so the two never collide. See [mikser-io-sdk-api → `initialUrl`](https://github.com/almero-digital-marketing/mikser-io-sdk-api#initialurl--pair-with-the-data-plugin-for-fast-first-paint) for the client side, and [`examples/mikser-content/mikser.config.js`](./examples/mikser-content/mikser.config.js) for the full config in context.
+
+### Dynamic routes — for catalogs too big to enumerate
+
+The catch-all route above does a two-step lookup: list the catalog for `meta.route === currentPath`, then fetch the full doc by id. For catalogs past ~5–10k documents, that's the right shape from the start — and the SDK ships a one-liner for it. Drop `initialUrl` from your client, drop `useMikserPages`, and resolve the path in your catch-all view with `useDocumentByRoute`:
+
+```svelte
+<!-- src/routes/[...slug]/+page.svelte -->
+<script>
+    import { page } from '$app/state'
+    import { useDocumentByRoute } from 'mikser-io-sdk-svelte'
+    import ArticleView from '$lib/views/ArticleView.svelte'
+    import ProductView from '$lib/views/ProductView.svelte'
+    import PageView    from '$lib/views/PageView.svelte'
+    import NotFound    from '$lib/views/NotFound.svelte'
+
+    const result = useDocumentByRoute(() => page.url.pathname)
+    const viewForComponent = { article: ArticleView, product: ProductView, page: PageView }
+</script>
+
+{#if result.loading}
+    <p>Loading…</p>
+{:else if result.document}
+    {@const View = viewForComponent[result.document.meta?.component] ?? PageView}
+    <View document={result.document} />
+{:else}
+    <NotFound />
+{/if}
+```
+
+`useDocumentByRoute` issues `GET /api/public/entities?meta.route=/en/about&meta.published=true&limit=1`. With `cache: true` on the public endpoint, mikser writes that response to disk; the standard nginx failover config (see [mikser-io's caching docs](https://github.com/almero-digital-marketing/mikser-io/blob/main/documentation/caching.md)) serves the file directly on subsequent requests. So:
+
+- **First visitor to a route:** SDK → mikser → response served + written to disk
+- **Every subsequent visitor:** SDK → proxy serves the cached file (mikser idle)
+- **Catalog change:** entire cache directory cleared, re-warms on demand
+
+Effectively per-route ISR — the cache is built by real user traffic. **When to pick this shape over the snapshot:** when `/data/sitemap.json` would be over ~1–2 MB or you have more than ~5k routes. The trade-off is one extra API roundtrip on the *first* visit to a cold route (warm thereafter).
 
 ## Multilingual `useHref` / `useAlternates`
 

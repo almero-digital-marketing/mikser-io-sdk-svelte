@@ -8,7 +8,7 @@
 // This file is a re-export barrel. Implementations live in ./src:
 //
 //   src/client.js               setMikserClient, useMikserClient
-//   src/documents.svelte.js     useDocument, useDocuments
+//   src/documents.svelte.js     useDocument, useDocuments, useDocumentByRoute
 //   src/router.svelte.js        useMikserPages, generateMikserRoutes
 //   src/href.svelte.js          provideHrefIndex, useHref, useAlternates
 //   src/asset.svelte.js         provideAssetIndex, useAsset
@@ -23,7 +23,7 @@
 // .js modules don't need them.
 
 export { setMikserClient, useMikserClient }    from './src/client.js'
-export { useDocument, useDocuments }           from './src/documents.svelte.js'
+export { useDocument, useDocuments, useDocumentByRoute } from './src/documents.svelte.js'
 export { useMikserPages, generateMikserRoutes } from './src/router.svelte.js'
 export { provideHrefIndex, useHref, useAlternates } from './src/href.svelte.js'
 export { provideAssetIndex, useAsset }         from './src/asset.svelte.js'

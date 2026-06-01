@@ -140,3 +140,81 @@ export function useDocuments(getQuery = () => ({}), { client: clientArg } = {}) 
         refresh() { refreshTick++ },
     }
 }
+
+/**
+ * Live single-document lookup by URL route. Resolves the document
+ * whose `meta.route` matches the given path; stays subscribed for
+ * updates. Use this in the catch-all view of a SPA with dynamic
+ * routes — the right shape when the catalog is too large to enumerate
+ * via the snapshot/registered-routes approach.
+ *
+ * Each unique route resolves through the api plugin's per-query cache,
+ * so the first user pays an API round-trip and subsequent users get
+ * the cached file via the reverse proxy — effectively on-demand SSG
+ * with no extra config.
+ *
+ *   <script>
+ *     import { page } from '$app/state'
+ *     import { useDocumentByRoute } from 'mikser-io-sdk-svelte'
+ *     const result = useDocumentByRoute(() => page.url.pathname)
+ *   </script>
+ *
+ *   {#if result.loading}…{:else if result.document}<Page {...result.document} />{/if}
+ *
+ * Extra options:
+ *   - `extraFilter`: merged into the filter (default `{ 'meta.published': true }`).
+ *     Pass `{}` to disable the published filter; pass other fields to add them.
+ *   - `client`: override the default entities client.
+ */
+export function useDocumentByRoute(getPath, {
+    client: clientArg,
+    extraFilter = { 'meta.published': true },
+} = {}) {
+    const client = clientArg ?? useMikserClient()
+
+    let document = $state.raw(null)
+    let loading  = $state(true)
+    let error    = $state.raw(null)
+
+    let refreshTick = $state(0)
+
+    $effect(() => {
+        void refreshTick
+
+        const path = typeof getPath === 'function' ? getPath() : getPath
+        if (path == null || path === '') {
+            document = null
+            error = null
+            loading = false
+            return
+        }
+
+        loading = true
+        error = null
+
+        const filter = { 'meta.route': path, ...(extraFilter ?? {}) }
+        const dispose = client.live(
+            filter,
+            (items) => {
+                document = items[0] ?? null
+                loading = false
+            },
+            {
+                limit: 1,
+                onError: (err) => {
+                    error = err
+                    loading = false
+                },
+            },
+        )
+
+        return () => dispose?.()
+    })
+
+    return {
+        get document() { return document },
+        get loading()  { return loading },
+        get error()    { return error },
+        refresh() { refreshTick++ },
+    }
+}
