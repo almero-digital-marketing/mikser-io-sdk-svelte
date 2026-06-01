@@ -146,7 +146,7 @@ import { PUBLIC_MIKSER_URL } from '$env/static/public'
 // CDN-cacheable, no API roundtrip — then opens a live SSE subscribe
 // on the same /public endpoint for incremental updates.
 export const documents = createClient({ baseUrl: PUBLIC_MIKSER_URL })
-    .entities('public', { data: { catalog: 'sitemap' } })
+    .entities('public', { data: { catalog: 'sitemap', entities: 'page' } })
 ```
 
 **`src/routes/+layout.svelte` — register the client:**

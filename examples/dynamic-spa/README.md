@@ -80,7 +80,7 @@ If you're already familiar with [`examples/pure-spa`](../pure-spa), here's what 
 
 | | pure-spa (Scenario A) | dynamic-spa (Scenario D) |
 |---|---|---|
-| Client setup | `entities('public', { data: { catalog: 'sitemap' } })` | `entities('public')` — no snapshot |
+| Client setup | `entities('public', { data: { catalog: 'sitemap', entities: 'page' } })` | `entities('public')` — no snapshot |
 | Routing | `useMikserPages` builds a live `pages.items[]` table | One catch-all `DocumentResolver` |
 | `route-mapping.js` | Has it, maps catalog entries to `{ path, id, component }` for the routes table | Doesn't exist — dispatch happens inline in DocumentResolver |
 | `mikser.config.js` | Has `data.catalog.sitemap` block | Can drop the block — no snapshot consumed |

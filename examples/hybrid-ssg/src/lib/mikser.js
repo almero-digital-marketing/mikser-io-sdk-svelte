@@ -17,4 +17,4 @@ const url = (
 // back to a fresh list() call. Live SSE keeps the runtime admin SPA
 // current.
 export const documents = createClient({ baseUrl: url })
-    .entities('public', { data: { catalog: 'sitemap' } })
+    .entities('public', { data: { catalog: 'sitemap', entities: 'page' } })
