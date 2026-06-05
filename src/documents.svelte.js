@@ -27,7 +27,7 @@ import { useMikserClient } from './client.js'
  * runes referenced inside the getter, so the subscription re-establishes
  * automatically when the upstream id changes.
  */
-export function useDocument(getId, { client: clientArg } = {}) {
+export function useDocument(getId, { client: clientArg, expand, fields } = {}) {
     const client = clientArg ?? useMikserClient()
 
     let document      = $state.raw(null)
@@ -60,6 +60,8 @@ export function useDocument(getId, { client: clientArg } = {}) {
             },
             {
                 limit: 1,
+                fields,
+                expand,                  // see ADR-0007 — inline-resolve $-refs
                 onError: (err) => {
                     error = err
                     loading = false
@@ -110,7 +112,7 @@ export function useDocuments(getQuery = () => ({}), { client: clientArg } = {}) 
         void refreshTick
 
         const query = typeof getQuery === 'function' ? getQuery() : getQuery
-        const { filter = {}, sort, fields, limit, skip } = query ?? {}
+        const { filter = {}, sort, fields, limit, skip, expand } = query ?? {}
 
         loading = true
         error = null
@@ -123,6 +125,7 @@ export function useDocuments(getQuery = () => ({}), { client: clientArg } = {}) 
             },
             {
                 sort, fields, limit, skip,
+                expand,                  // see ADR-0007 — inline-resolve $-refs
                 onError: (err) => {
                     error = err
                     loading = false
