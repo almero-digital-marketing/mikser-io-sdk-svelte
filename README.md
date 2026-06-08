@@ -17,7 +17,7 @@
 
 **One mental model across every rendering shape** — pure Svelte SPA, hybrid SvelteKit (prerendered public + live `/admin` editor served via adapter-static's fallback), or mikser-rendered HTML with Svelte 5 `mount()`-ed islands. Same reactives, different surface. See [`examples/`](./examples) for the three patterns side-by-side.
 
-**Typed at the seam.** Pair with [`mikser-io-plugin-schemas`](https://github.com/almero-digital-marketing/mikser-io-plugin-schemas) to author Zod schemas alongside your content; `useDocument<{ meta: MetaByLayout<'article'> }>(() => id)` then carries the front-matter shape straight into your templates.
+**Typed at the seam.** Pair with [`mikser-io-schemas`](https://github.com/almero-digital-marketing/mikser-io-schemas) to author Zod schemas alongside your content; `useDocument<{ meta: MetaByLayout<'article'> }>(() => id)` then carries the front-matter shape straight into your templates.
 
 Pairs with [`mikser-io-sdk-api`](https://github.com/almero-digital-marketing/mikser-io-sdk-api) — that package handles transport (HTTP + SSE); this one wraps it in Svelte idioms.
 
@@ -728,7 +728,7 @@ const search = useSimilar<ProductHit>('products', () => query)
 The reactives are generic on the entity type:
 
 ```ts
-import type { MetaByLayout } from '$lib/mikser-content/entities'   // emitted by mikser-io-plugin-schemas
+import type { MetaByLayout } from '$lib/mikser-content/entities'   // emitted by mikser-io-schemas
 
 type Article = { id: string; meta: MetaByLayout<'article'> }
 
@@ -736,7 +736,7 @@ const article = useDocument<Article>(() => entityId)
 // article.document.meta.title  ← typed
 ```
 
-`mikser-io-sdk-api` provides the `EntitiesClient`, `Filter`, and `ListQuery` types. Pair with [`mikser-io-plugin-schemas`](https://github.com/almero-digital-marketing/mikser-io-plugin-schemas) for entity meta types generated from Zod schemas in the mikser project.
+`mikser-io-sdk-api` provides the `EntitiesClient`, `Filter`, and `ListQuery` types. Pair with [`mikser-io-schemas`](https://github.com/almero-digital-marketing/mikser-io-schemas) for entity meta types generated from Zod schemas in the mikser project.
 
 ## Design notes
 
