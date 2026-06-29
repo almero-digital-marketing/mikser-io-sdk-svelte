@@ -76,20 +76,36 @@ export function useHref(defaultLang) {
         )
     }
 
-    function href(ref, lang) {
-        const target = lang
+    function resolveLang(lang) {
+        return lang
             ?? (typeof defaultLang === 'function' ? defaultLang() : defaultLang)
             ?? slot.defaultLang
-        return slot.index.href(ref, target)
+    }
+
+    function href(ref, lang) {
+        return slot.index.href(ref, resolveLang(lang))
     }
 
     function refFor(url) {
         return slot.index.refFor(url)
     }
 
+    // Content companions — resolve the document a logical ref points at,
+    // not just its URL. Read from the same live index, so they track
+    // changes to the referenced document.
+    function doc(ref, lang) {
+        return slot.index.docFor(ref, resolveLang(lang))
+    }
+
+    function meta(ref, lang) {
+        return slot.index.metaFor(ref, resolveLang(lang))
+    }
+
     return {
         href,
         refFor,
+        doc,
+        meta,
         get index() { return slot.index },
     }
 }
