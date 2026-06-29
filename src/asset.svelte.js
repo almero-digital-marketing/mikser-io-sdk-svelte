@@ -1,15 +1,22 @@
-// Asset / image reference resolution — Svelte 5 reactive shell around
-// sdk-api's pure createAssetIndex.
+// Asset resolution — Svelte 5 reactive shell around sdk-api's format-
+// neutral asset helpers.
+//
+//   useAsset().assetUrl(source, preset, { ext })  — preset → derivative
+//     URL by convention; pure, needs no provide (just the client's
+//     baseUrl). The common case.
+//   useAsset().asset(ref)                          — managed-entity
+//     metadata lookup; only resolves when provideAssetIndex() is in a
+//     parent. Returns { url, meta } | null.
 import { setContext, getContext } from 'svelte'
-import { createAssetIndex } from 'mikser-io-sdk-api'
-import { useMikserClient } from './client.js'
+import { assetUrl as buildAssetUrl, createAssetIndex } from 'mikser-io-sdk-api'
+import { useMikserClient, MIKSER_CLIENT } from './client.js'
 
 const ASSET_INDEX = Symbol('mikser-io.asset-index')
 
 /**
- * provideAssetIndex — build and provide a reactive asset index. Call
- * once in a top-level component (or root layout), then read it with
- * useAsset() anywhere below.
+ * provideAssetIndex — build and provide a reactive index of managed asset
+ * entities. Only needed for useAsset().asset(ref); the assetUrl()
+ * convention helper needs no provide. Call once in a top-level component.
  *
  *   <script>
  *     import { provideAssetIndex } from 'mikser-io-sdk-svelte'
@@ -42,47 +49,37 @@ export function provideAssetIndex({
 }
 
 /**
- * Read the asset index. Returns an object with `asset`, `image`, and a
- * reactive `index` getter.
+ * Asset access. Returns `{ assetUrl, asset, index }`.
  *
  *   <script>
  *     import { useAsset } from 'mikser-io-sdk-svelte'
- *     const { image } = useAsset()
+ *     const { assetUrl } = useAsset()
  *   </script>
  *
- *   <img {...image('/assets/hero.jpg')} />
+ *   <video src={assetUrl(clip, 'presentation')}
+ *          poster={assetUrl(clip, 'poster', { ext: 'jpg' })}></video>
  *
- * `asset(ref)` returns the full record (url + dimensions + meta).
- * `image(ref)` returns `{ src, width, height, srcset, alt }` suitable
- * for spreading onto an <img> in a Svelte template (Svelte uses
- * lowercase HTML attribute names, so `srcset` not `srcSet`).
- *
- * Both return null for unresolved refs.
- *
- * Destructuring `{ asset, image } = useAsset()` is safe — they're
- * plain functions that close over the live index. Destructuring
- * `{ index }` would snapshot it; keep the object reference instead if
- * you need to read `.index` reactively.
+ * `assetUrl(source, preset, { ext })` builds the derivative URL by
+ * convention, baseUrl from the installed client; needs no provide.
+ * `asset(ref)` → `{ url, meta } | null`, resolves only when
+ * provideAssetIndex() is in a parent.
  */
 export function useAsset() {
+    const client = getContext(MIKSER_CLIENT)
     const slot = getContext(ASSET_INDEX)
-    if (!slot) {
-        throw new Error(
-            'useAsset: provideAssetIndex() must be called in a parent component first'
-        )
+    const baseUrl = client?.baseUrl ?? ''
+
+    function assetUrl(source, preset, options = {}) {
+        return buildAssetUrl(source, preset, { baseUrl, ...options })
     }
 
     function asset(ref) {
-        return slot.index.asset(ref)
-    }
-
-    function image(ref) {
-        return slot.index.image(ref)
+        return slot ? slot.index.asset(ref) : null
     }
 
     return {
+        assetUrl,
         asset,
-        image,
-        get index() { return slot.index },
+        get index() { return slot ? slot.index : null },
     }
 }

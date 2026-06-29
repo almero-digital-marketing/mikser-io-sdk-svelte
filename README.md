@@ -10,7 +10,7 @@
 | **Multilingual URLs** | `href('/about')` → `/en/about` or `/fr/a-propos` per locale |
 | **Content by reference** | `meta('/menu').products` — read a known document's fields by its logical `$ref`, no extra query |
 | **Hreflang + switchers** | `useAlternates({ route })` |
-| **Asset metadata** | `image('/assets/hero.jpg')` → `{ src, srcset, width, height, alt }` |
+| **Preset asset URLs** | `assetUrl(clip, 'presentation')` → `<cms>/assets/presentation/<clip>` |
 | **Semantic search** | `useSimilar(store, () => query)` with built-in debounce + stale-discard |
 | **Live nav data** | `useMikserPages({ mapPage })` — for menus, sitemaps, search indexes |
 | **Build-time routes** | `generateMikserRoutes()` for SvelteKit's `entries()` prerender hook |
@@ -83,7 +83,7 @@ Peer deps: `svelte` ^5.
 | `generateMikserRoutes({ mapRoute })` | Async one-shot enumerator — for SvelteKit's `entries()` prerender hook. |
 | `provideHrefIndex(options?)` + `useHref(lang?)` | Multilingual href abstraction — logical references resolve to per-locale URLs. |
 | `useAlternates({ route, languages? })` | Alternates for hreflang tags and language switchers. |
-| `provideAssetIndex(options?)` + `useAsset()` | Resolve asset references to URL + dimensions + srcset. |
+| `provideAssetIndex(options?)` + `useAsset()` | Build preset-derivative URLs; look up managed asset entities. |
 | `setMikserVectorClient(client)` + `useMikserVectorClient()` | Bridges `mikser-io-sdk-vector` into Svelte context. |
 | `useSimilar<T>(store, getQuery, options?)` | Live semantic search with debounce + stale-result discard. |
 
@@ -538,6 +538,30 @@ In both cases the current page's own language is excluded from `alternates` (it'
 
 ## Asset resolution
 
+mikser's `assets()` plugin is a *preset transcoder* (video, image, pdf, audio…), not an image pipeline — so the SDK's asset helpers are format-neutral. Image-specific rendering (srcset, `<img>` props) is a consumer concern: read `meta` where you actually know an asset is an image.
+
+`useAsset()` returns `{ assetUrl, asset, index }`.
+
+### `assetUrl` — the primary helper
+
+`assetUrl(source, preset, { ext })` builds a transcoded-derivative URL by the `assets()` plugin convention: `<baseUrl>/assets/<preset>/<source>`. `baseUrl` is bound automatically from the installed client. `ext`, when given, is the preset's output format and **replaces** the source extension (a poster preset turns `.mp4` → `.jpg`).
+
+It is pure — no `provideAssetIndex` needed. Just call `useAsset().assetUrl(...)`.
+
+```svelte
+<script>
+    import { useAsset } from 'mikser-io-sdk-svelte'
+    const { assetUrl } = useAsset()
+</script>
+
+<video src={assetUrl(clip, 'presentation')}
+       poster={assetUrl(clip, 'poster', { ext: 'jpg' })}></video>
+```
+
+### `asset` — managed-entity lookup
+
+`asset(ref)` is format-neutral: it returns `{ url, meta } | null` for a managed asset *entity* looked up by id. `meta` is the entity's raw meta block (opaque: mime, dimensions, duration — whatever the preset emitted). It only resolves when `provideAssetIndex()` is in a parent (otherwise it returns `null`).
+
 ```svelte
 <!-- provide once, near the root -->
 <script>
@@ -550,15 +574,18 @@ In both cases the current page's own language is excluded from `alternates` (it'
 <!-- use anywhere below -->
 <script>
     import { useAsset } from 'mikser-io-sdk-svelte'
-    const { image } = useAsset()
+    const { asset } = useAsset()
+
+    const hero = asset('/assets/hero')
 </script>
 
-{#if image('/assets/hero.jpg')}
-    <img {...image('/assets/hero.jpg')} />
+{#if hero}
+    <!-- meta is opaque; read image-specific fields only where you know it's an image -->
+    <img src={hero.url} width={hero.meta.width} height={hero.meta.height} />
 {/if}
 ```
 
-`image()` returns `{ src, width, height, srcset, alt }` — Svelte uses lowercase HTML attribute names, so `srcset` not `srcSet`. `asset()` returns the full record (`url` + dimensions + raw `meta`). Both return `null` for unresolved references, so branch on that.
+`provideAssetIndex` is only needed for `asset(ref)` entity lookups — `assetUrl` works without it.
 
 ## References & inline expansion
 

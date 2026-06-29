@@ -197,16 +197,18 @@ export declare function useAlternates(
 ): UseAlternatesResult
 
 // ---------------------------------------------------------------------------
-// asset() — asset / image reference resolution
+// asset() — preset URL convention + managed-entity lookup
 // ---------------------------------------------------------------------------
 
 export interface AssetRecord {
-    url:    string
-    width?: number
-    height?: number
-    srcset?: string
-    alt?:   string
-    meta?:  Record<string, unknown>
+    url:   string
+    /** Raw entity meta block — opaque (mime, dimensions, duration, …). */
+    meta?: Record<string, unknown>
+}
+
+export interface AssetUrlOptions {
+    /** Preset output format — replaces the source extension (.mp4 → .jpg). */
+    ext?: string
 }
 
 export interface ProvideAssetIndexOptions {
@@ -225,16 +227,17 @@ export declare function provideAssetIndex(
 ): AssetIndexSlot
 
 export interface UseAssetResult {
+    /**
+     * URL of a transcoded derivative by the assets() convention, baseUrl
+     * bound from the installed client. Needs no provideAssetIndex.
+     */
+    assetUrl(source: string, preset: string, options?: AssetUrlOptions): string
+    /**
+     * Managed asset entity by reference → { url, meta } | null. Resolves
+     * only when provideAssetIndex() is in a parent.
+     */
     asset(ref: string): AssetRecord | null
-    /** Returns attributes suitable for spreading onto a Svelte <img>. */
-    image(ref: string): {
-        src:    string
-        width?: number
-        height?: number
-        srcset?: string
-        alt?:   string
-    } | null
-    readonly index: AssetIndex
+    readonly index: AssetIndex | null
 }
 
 export declare function useAsset(): UseAssetResult
