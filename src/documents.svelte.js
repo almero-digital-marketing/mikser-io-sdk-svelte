@@ -14,6 +14,22 @@ import { useMikserClient } from './client.js'
 
 const CURRENT_DOCUMENT = Symbol('mikser-io.current-document')
 
+// Normalize a route source to a path string. Same logic across the
+// vue/react/svelte SDKs: a string, a getter, or the route object your
+// router hands you — a SvelteKit page (`.url.pathname`), a vue-router
+// route (`.path`), or a react-router location (`.pathname`). The SDK
+// reads a field; it never imports a router, so `route: () => page`
+// works as well as `route: () => page.url.pathname`.
+function toRoutePath(route) {
+    if (route == null) return null
+    if (typeof route === 'function') return toRoutePath(route())
+    if (typeof route === 'string') return route
+    if (route.url && typeof route.url.pathname === 'string') return route.url.pathname
+    if (typeof route.path === 'string') return route.path
+    if (typeof route.pathname === 'string') return route.pathname
+    return null
+}
+
 /**
  * Live single-document reactive. Resolves the document by id and stays in
  * sync with changes via client.live().
@@ -244,9 +260,12 @@ export function useDocumentByRoute(getPath, {
  *   const current = useCurrentDocument()
  *   {#if current.document}<h1>{current.document.meta.title}</h1>{/if}
  *
- * `route` is a path string or getter (the SDK stays router-agnostic).
- * `resolve` maps a path to the lookup filter (default `meta.route ===
- * path`). `extraFilter` is merged in (default none — pass
+ * `route` is the current-route source — pass a getter to SvelteKit's
+ * page (`route: () => page`, the SDK reads `.url.pathname`) or to the
+ * path directly (`route: () => page.url.pathname`). The SDK stays
+ * router-agnostic; it reads a field, never imports one. `resolve` maps
+ * a path to the lookup filter (default `meta.route === path`).
+ * `extraFilter` is merged in (default none — pass
  * `{ 'meta.published': true }` to require published).
  */
 export function provideCurrentDocument({
@@ -266,7 +285,7 @@ export function provideCurrentDocument({
     let loading  = $state(true)
 
     $effect(() => {
-        const path = typeof route === 'function' ? route() : route
+        const path = toRoutePath(route)
         if (path == null || path === '') {
             document = null
             loading = false
