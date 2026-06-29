@@ -9,7 +9,10 @@
 // Calling convention: pass a getter (`() => id`) so the effect can
 // re-subscribe when the upstream state changes. Plain values also work
 // — they just don't re-subscribe.
+import { setContext, getContext } from 'svelte'
 import { useMikserClient } from './client.js'
+
+const CURRENT_DOCUMENT = Symbol('mikser-io.current-document')
 
 /**
  * Live single-document reactive. Resolves the document by id and stays in
@@ -220,4 +223,87 @@ export function useDocumentByRoute(getPath, {
         get error()    { return error },
         refresh() { refreshTick++ },
     }
+}
+
+/**
+ * provideCurrentDocument — subscribe ONCE to the current-route document
+ * from a top-level component and share it with descendants via
+ * useCurrentDocument(). The third member of the provide-once family
+ * alongside provideHrefIndex / provideAssetIndex — for the singular
+ * ambient "current page" document a content SPA reads everywhere.
+ * Without it, each useDocumentByRoute() call opens its own identical
+ * subscription to the same document.
+ *
+ *   <script>
+ *     import { page } from '$app/state'
+ *     import { provideCurrentDocument } from 'mikser-io-sdk-svelte'
+ *     provideCurrentDocument({ route: () => page.url.pathname })
+ *   </script>
+ *
+ *   // descendant
+ *   const current = useCurrentDocument()
+ *   {#if current.document}<h1>{current.document.meta.title}</h1>{/if}
+ *
+ * `route` is a path string or getter (the SDK stays router-agnostic).
+ * `resolve` maps a path to the lookup filter (default `meta.route ===
+ * path`). `extraFilter` is merged in (default none — pass
+ * `{ 'meta.published': true }` to require published).
+ */
+export function provideCurrentDocument({
+    route,
+    client: clientArg,
+    resolve = (path) => ({ 'meta.route': path }),
+    extraFilter = {},
+    fields,
+    expand,
+} = {}) {
+    if (route == null) {
+        throw new Error('provideCurrentDocument: { route } is required (a path string or getter)')
+    }
+    const client = clientArg ?? useMikserClient()
+
+    let document = $state.raw(null)
+    let loading  = $state(true)
+
+    $effect(() => {
+        const path = typeof route === 'function' ? route() : route
+        if (path == null || path === '') {
+            document = null
+            loading = false
+            return
+        }
+        loading = true
+        const filter = { ...resolve(path), ...extraFilter }
+        const dispose = client.live(
+            filter,
+            (items) => {
+                document = items[0] ?? null
+                loading = false
+            },
+            { limit: 1, fields, expand, onError: () => { loading = false } },
+        )
+        return () => dispose?.()
+    })
+
+    const slot = {
+        get document() { return document },
+        get loading()  { return loading },
+    }
+    setContext(CURRENT_DOCUMENT, slot)
+    return slot
+}
+
+/**
+ * Read the shared current-route document. Returns an object with
+ * reactive `document` / `loading` getters. Requires
+ * provideCurrentDocument() in a parent.
+ */
+export function useCurrentDocument() {
+    const slot = getContext(CURRENT_DOCUMENT)
+    if (!slot) {
+        throw new Error(
+            'useCurrentDocument: provideCurrentDocument() must be called in a parent component first'
+        )
+    }
+    return slot
 }

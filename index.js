@@ -23,7 +23,10 @@
 // .js modules don't need them.
 
 export { setMikserClient, useMikserClient }    from './src/client.js'
-export { useDocument, useDocuments, useDocumentByRoute } from './src/documents.svelte.js'
+export {
+    useDocument, useDocuments, useDocumentByRoute,
+    provideCurrentDocument, useCurrentDocument,
+} from './src/documents.svelte.js'
 export { useMikserPages, generateMikserRoutes } from './src/router.svelte.js'
 export { provideHrefIndex, useHref, useAlternates } from './src/href.svelte.js'
 export { provideAssetIndex, useAsset }         from './src/asset.svelte.js'
