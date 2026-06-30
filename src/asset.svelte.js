@@ -1,21 +1,22 @@
 // Asset resolution — Svelte 5 reactive shell around sdk-api's format-
 // neutral asset helpers.
 //
-//   useAsset().assetUrl(source, preset, { ext })  — preset → derivative
-//     URL by convention; pure, needs no provide (just the client's
-//     baseUrl). The common case.
-//   useAsset().asset(ref)                          — managed-entity
-//     metadata lookup; only resolves when provideAssetIndex() is in a
-//     parent. Returns { url, meta } | null.
+//   useAsset().url(ref)        — join a deployed served path (meta.url or
+//     meta.presets.<name>) to the client base; pure, needs no provide.
+//     The common case (ADR-0011).
+//   useAsset().asset(ref)      — managed-entity metadata lookup; only
+//     resolves when provideAssetIndex() is in a parent. { url, meta } | null.
 import { setContext, getContext } from 'svelte'
-import { assetUrl as buildAssetUrl, createAssetIndex } from 'mikser-io-sdk-api'
+import { deployedUrl, createAssetIndex } from 'mikser-io-sdk-api'
 import { useMikserClient, MIKSER_CLIENT } from './client.js'
+
+export { watchAssetFallbacks } from 'mikser-io-sdk-api'
 
 const ASSET_INDEX = Symbol('mikser-io.asset-index')
 
 /**
  * provideAssetIndex — build and provide a reactive index of managed asset
- * entities. Only needed for useAsset().asset(ref); the assetUrl()
+ * entities. Only needed for useAsset().asset(ref); the url()
  * convention helper needs no provide. Call once in a top-level component.
  *
  *   <script>
@@ -49,28 +50,28 @@ export function provideAssetIndex({
 }
 
 /**
- * Asset access. Returns `{ assetUrl, asset, index }`.
+ * Asset access. Returns `{ url, asset, index }`.
  *
  *   <script>
  *     import { useAsset } from 'mikser-io-sdk-svelte'
- *     const { assetUrl } = useAsset()
+ *     const { url } = useAsset()
  *   </script>
  *
- *   <video src={assetUrl(clip, 'presentation')}
- *          poster={assetUrl(clip, 'poster', { ext: 'jpg' })}></video>
+ *   <video src={url(clip.meta.url)}
+ *          poster={url(clip.meta.presets.poster)}></video>
  *
- * `assetUrl(source, preset, { ext })` builds the derivative URL by
- * convention, baseUrl from the installed client; needs no provide.
- * `asset(ref)` → `{ url, meta } | null`, resolves only when
- * provideAssetIndex() is in a parent.
+ * `url(ref)` joins a deployed served path (from `meta.url` /
+ * `meta.presets.<name>`, expanded via the catalog) to the client base;
+ * needs no provide. `asset(ref)` → `{ url, meta } | null`, resolves only
+ * when provideAssetIndex() is in a parent.
  */
 export function useAsset() {
     const client = getContext(MIKSER_CLIENT)
     const slot = getContext(ASSET_INDEX)
     const baseUrl = client?.baseUrl ?? ''
 
-    function assetUrl(source, preset, options = {}) {
-        return buildAssetUrl(source, preset, { baseUrl, ...options })
+    function url(ref) {
+        return deployedUrl(ref, { baseUrl })
     }
 
     function asset(ref) {
@@ -78,7 +79,7 @@ export function useAsset() {
     }
 
     return {
-        assetUrl,
+        url,
         asset,
         get index() { return slot ? slot.index : null },
     }

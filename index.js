@@ -29,7 +29,8 @@ export {
 } from './src/documents.svelte.js'
 export { useMikserPages, generateMikserRoutes } from './src/router.svelte.js'
 export { provideHrefIndex, useHref, useAlternates } from './src/href.svelte.js'
-export { provideAssetIndex, useAsset }         from './src/asset.svelte.js'
+export { provideAssetIndex, useAsset, watchAssetFallbacks } from './src/asset.svelte.js'
+export { createReactiveCache }                 from './src/cache.svelte.js'
 export { useMikserStatus }                     from './src/status.svelte.js'
 export {
     setMikserVectorClient,

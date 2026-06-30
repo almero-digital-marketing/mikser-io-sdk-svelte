@@ -274,7 +274,10 @@ export function provideCurrentDocument({
     resolve = (path) => ({ 'meta.route': path }),
     extraFilter = {},
     fields,
-    expand,
+    // A document comes with its references resolved: the default expand is the
+    // `$` wildcard (resolve every ref, ADR-0007). Pass `expand: []` to opt out,
+    // or a path list to narrow it.
+    expand = ['$'],
 } = {}) {
     if (route == null) {
         throw new Error('provideCurrentDocument: { route } is required (a path string or getter)')

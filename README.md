@@ -9,8 +9,9 @@
 | **Live lists** | `const list = useDocuments(() => ({ filter, sort, fields }))` |
 | **Multilingual URLs** | `href('/about')` → `/en/about` or `/fr/a-propos` per locale |
 | **Content by reference** | `meta('/menu').products` — read a known document's fields by its logical `$ref`, no extra query |
+| **Local content cache** | `createReactiveCache(client)` — load-once, expand-capable doc cache, readable from non-component code |
 | **Hreflang + switchers** | `useAlternates({ route })` |
-| **Preset asset URLs** | `assetUrl(clip, 'presentation')` → `<cms>/assets/presentation/<clip>` |
+| **Deployed asset URLs** | `url(clip.meta.url)` → `<cms>/...` — joins a served path from the catalog to the client base |
 | **Semantic search** | `useSimilar(store, () => query)` with built-in debounce + stale-discard |
 | **Live nav data** | `useMikserPages({ mapPage })` — for menus, sitemaps, search indexes |
 | **Build-time routes** | `generateMikserRoutes()` for SvelteKit's `entries()` prerender hook |
@@ -79,11 +80,13 @@ Peer deps: `svelte` ^5.
 | `useDocument<T>(getId, options?)` | Live single-document reactive. Pass `() => id` for re-subscription on change. |
 | `useDocuments<T>(getQuery, options?)` | Live list reactive. Pass `() => query` for re-subscription on change. |
 | `useDocumentByRoute<T>(getPath, options?)` | Live single-document lookup by URL route — for the catch-all `[...path]/+page.svelte` in dynamic-routes setups. See "Dynamic routes" below. |
+| `provideCurrentDocument({ route, expand? })` + `useCurrentDocument()` | One shared current-route document for the subtree — provide in a layout, read anywhere below. References resolve by default (`$` wildcard); `expand: []` opts out. |
 | `useMikserPages({ mapPage })` | Live reactive array of page entries — menus, sitemaps, search. |
 | `generateMikserRoutes({ mapRoute })` | Async one-shot enumerator — for SvelteKit's `entries()` prerender hook. |
 | `provideHrefIndex(options?)` + `useHref(lang?)` | Multilingual href abstraction — logical references resolve to per-locale URLs. |
 | `useAlternates({ route, languages? })` | Alternates for hreflang tags and language switchers. |
 | `provideAssetIndex(options?)` + `useAsset()` | Build preset-derivative URLs; look up managed asset entities. |
+| `createReactiveCache(client)` | Reactive load-once content cache — a plain factory, usable outside components. See "Local content cache" below. |
 | `setMikserVectorClient(client)` + `useMikserVectorClient()` | Bridges `mikser-io-sdk-vector` into Svelte context. |
 | `useSimilar<T>(store, getQuery, options?)` | Live semantic search with debounce + stale-result discard. |
 
@@ -455,10 +458,61 @@ When to pick D over A: roughly when `/data/sitemap.json` would emit more than ~1
 | `client.list()` directly | Build-time (in `entries()` / `load()`), SSR (no live updates needed) | Inside components that need to react to changes |
 | `useDocument()` / `useDocuments()` | Components in any scenario | Plain JS files (use the SDK directly) |
 | `useDocumentByRoute()` | Scenario D catch-all view — resolve the current path to a document | Scenarios A/B (you have the entity id; use `useDocument`) |
+| `provideCurrentDocument()` / `useCurrentDocument()` | Share the current route's document from a layout down to its page + components (head + body + media) | A page with no child components reading the doc (just use `useDocumentByRoute`) |
 | `useMikserPages` | Live navigation menus, sitemaps, tag indexes in scenarios A/B/D | Scenario C (no SvelteKit context for nav) |
 | `live()` underneath all the rest | Always — the others wrap it | — |
 | `generateMikserRoutes` | Scenario B `entries()` hook | Scenarios A, C, D |
 | `useHref` + `useAsset` | Any scenario with Svelte components | Mikser-rendered HTML (use the render-href plugin server-side instead) |
+
+## The current-route document
+
+When a page shares its document with child components — `<svelte:head>`, the body, the media — `provideCurrentDocument` loads it once for the current route and exposes it to the subtree; children read it with `useCurrentDocument()` instead of prop-drilling. Provide it from a `+layout.svelte` (it wraps the page) or the catch-all `[...path]/+page.svelte`.
+
+```svelte
+<!-- src/routes/+layout.svelte -->
+<script>
+  import { page } from '$app/state'
+  import { provideCurrentDocument } from 'mikser-io-sdk-svelte'
+  import { client } from '$lib/mikser'
+
+  let { children } = $props()
+  // Neutral: serves <svelte:head> + plain-field readers; no refs resolved.
+  const current = provideCurrentDocument({ client, route: () => page.url.pathname, expand: [] })
+</script>
+
+<svelte:head><title>{current.document?.meta.title}</title></svelte:head>
+{@render children()}
+```
+
+```svelte
+<!-- any child component -->
+<script>
+  import { useCurrentDocument } from 'mikser-io-sdk-svelte'
+  const current = useCurrentDocument()
+</script>
+{current.document?.meta.title}
+```
+
+### Who owns the references
+
+A document carries `$`-keyed references — a `$video`, a `$hero`, a list of `$related`. Resolving them is [`expand`'s](#references--inline-expansion) job, and **the default is the `$` wildcard**: omit `expand` and the document arrives with every reference resolved. But a root `+layout.svelte` serves `<svelte:head>` and plain-field readers and wraps every page — resolving there makes pages expand media they never render. The root layout opts **out** with `expand: []`; a section layout (or page) that renders references provides its **own** current-route document, default `['$']`, shadowing the root for its subtree:
+
+```svelte
+<!-- src/routes/(marketing)/+layout.svelte — its pages render videos -->
+<script>
+  import { page } from '$app/state'
+  import { provideCurrentDocument } from 'mikser-io-sdk-svelte'
+  import { client } from '$lib/mikser'
+
+  let { children } = $props()
+  provideCurrentDocument({ client, route: () => page.url.pathname })  // default expand: ['$']
+</script>
+{@render children()}
+```
+
+The principle: **a document doesn't know its consumers, so the consumer declares what to resolve** — not the document, not the route, not one root layout. `['$']` is the default because *resolved* is the common case; `[]` is the opt-out for the plain-field path.
+
+> SvelteKit owns route *matching* (filesystem), so there's no provide-vs-route-table tension here — this is purely about which layer resolves the references the page renders.
 
 ## Multilingual `useHref` / `useAlternates`
 
@@ -540,22 +594,22 @@ In both cases the current page's own language is excluded from `alternates` (it'
 
 mikser's `assets()` plugin is a *preset transcoder* (video, image, pdf, audio…), not an image pipeline — so the SDK's asset helpers are format-neutral. Image-specific rendering (srcset, `<img>` props) is a consumer concern: read `meta` where you actually know an asset is an image.
 
-`useAsset()` returns `{ assetUrl, asset, index }`.
+`useAsset()` returns `{ url, asset, index }`.
 
-### `assetUrl` — the primary helper
+### `url(ref)` — the primary helper
 
-`assetUrl(source, preset, { ext })` builds a transcoded-derivative URL by the `assets()` plugin convention: `<baseUrl>/assets/<preset>/<source>`. `baseUrl` is bound automatically from the installed client. `ext`, when given, is the preset's output format and **replaces** the source extension (a poster preset turns `.mp4` → `.jpg`).
+`url(ref)` joins a deployed, base-relative served path to the client base — `<baseUrl>/<ref>`. The path is whatever mikser's engine stamped into the entity's meta: a served file carries `meta.url` (its served path), a media source carries `meta.presets.<name>` (its transcoded-derivative paths). The catalog surfaces these via `expand`, so one rule covers files and derivatives alike — the SDK never constructs `/assets/<preset>/<source>` client-side. The base is bound automatically from the installed client.
 
-It is pure — no `provideAssetIndex` needed. Just call `useAsset().assetUrl(...)`.
+It is pure — no `provideAssetIndex` needed. Just call `useAsset().url(...)`. `watchAssetFallbacks()` is also exported — gate it behind `if (import.meta.env.DEV) watchAssetFallbacks()` to catch served URLs that resolve to the SPA fallback in dev (a missing base prefix or an unexpanded ref).
 
 ```svelte
 <script>
     import { useAsset } from 'mikser-io-sdk-svelte'
-    const { assetUrl } = useAsset()
+    const { url } = useAsset()
 </script>
 
-<video src={assetUrl(clip, 'presentation')}
-       poster={assetUrl(clip, 'poster', { ext: 'jpg' })}></video>
+<video src={url(clip.meta.url)}
+       poster={url(clip.meta.presets.poster)}></video>
 ```
 
 ### `asset` — managed-entity lookup
@@ -585,7 +639,7 @@ It is pure — no `provideAssetIndex` needed. Just call `useAsset().assetUrl(...
 {/if}
 ```
 
-`provideAssetIndex` is only needed for `asset(ref)` entity lookups — `assetUrl` works without it.
+`provideAssetIndex` is only needed for `asset(ref)` entity lookups — `url()` works without it.
 
 ## References & inline expansion
 
@@ -686,6 +740,57 @@ const { items } = await client.entities('public').list({
 ```
 
 Missing targets or cycles silently leave the ref as a string at the deepest position — same convention as the underlying api, per ADR-0007 B6.
+
+## Local content cache — `createReactiveCache`
+
+`createReactiveCache(docs)` is a reactive load-once content cache: a Svelte 5 shell around `mikser-io-sdk-api`'s framework-agnostic `createCache`, backed by `$state`. Each logical ref is fetched once, memoized, and returned on every subsequent read; a sync read re-evaluates when its entry lands, because a `$state` version tick is bumped on the core cache's `subscribe`.
+
+It's a plain **factory**, not a rune-bound composable — no Svelte context, no parent provider. That's the point: it works *outside* a component too — in `$derived`, stores, sync helpers, plain `.svelte.js` modules. Create it once and share it.
+
+```js
+// src/lib/content.js
+import { createReactiveCache } from 'mikser-io-sdk-svelte'
+import { documents } from '$lib/mikser.js'
+
+export const content = createReactiveCache(documents)
+
+// await content.document('/system/products', { expand: ['products.*.video'] })
+// content.documentSync('/system/translation')   // sync + reactive
+```
+
+### When to reach for it
+
+It **pairs** with the live href index (`useHref` / `meta`): `meta()` is always-fresh from an SSE subscription, so it's right for feeds that change. `createReactiveCache` is load-once, expand-capable, and readable from non-component code. Reach for `live()` / `meta()` for changing feeds; reach for this for **system docs, nav, settings** — things you read often and that change rarely.
+
+### API
+
+`const content = createReactiveCache(client.entities('public'))` returns:
+
+| Member | What it does |
+|---|---|
+| `content.document(href, { expand } = {})` | Async — load + memoize the doc at that logical ref; resolves to the doc (`items[0]`) or `null`. References resolve by default (`$` wildcard); pass `expand: []` to opt out or a path list to narrow. |
+| `content.documentSync(href, { expand } = {})` | **Sync + reactive** — return the loaded doc or `null`, and re-evaluate when the load lands. Same default expand as `document()`. Use in `$derived` / sync contexts. |
+| `content.load(query, opts)` / `content.read(query)` | Same pair for arbitrary list queries (envelope-returning). |
+| `content.invalidate(query?)` | Drop one entry, or the whole cache when called with no argument. |
+| `content.cache` | The underlying `mikser-io-sdk-api` cache. |
+
+The cache key folds in `expand` — the same href with vs. without an `expand` list is two distinct entries.
+
+```svelte
+<script>
+    import { content } from '$lib/content.js'
+
+    // Sync + reactive: null on first render, then the doc once it lands.
+    const translation = $derived(content.documentSync('/system/translation'))
+    const products    = $derived(
+        content.documentSync('/system/products', { expand: ['products.*.video'] })
+    )
+</script>
+
+{#if translation}
+    {translation.meta.greeting}
+{/if}
+```
 
 ## Semantic search — `setMikserVectorClient` + `useSimilar`
 

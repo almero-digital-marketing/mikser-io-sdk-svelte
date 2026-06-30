@@ -73,6 +73,44 @@ export declare function useDocuments<T = unknown>(
     options?: UseHookOptions,
 ): UseDocumentsResult<T>
 
+export interface ProvideCurrentDocumentOptions {
+    /** Current-path source: a path string or a getter `() => string`. */
+    route: string | (() => string | null | undefined)
+    /** Override the injected client. */
+    client?: EntitiesClient
+    /** Map a path to the lookup filter (default `{ 'meta.route': path }`). */
+    resolve?: (path: string) => Record<string, unknown>
+    /** Extra filter clauses merged into the lookup (default none). */
+    extraFilter?: Record<string, unknown>
+    /** Restrict the projected fields (default all). */
+    fields?: string[]
+    /**
+     * References to resolve. Defaults to the `$` wildcard — a document comes
+     * with every reference resolved (ADR-0007). Pass `[]` to opt out, or a
+     * path list to narrow it.
+     */
+    expand?: string[]
+}
+
+export interface CurrentDocumentSlot<T = unknown> {
+    /** The current-route document, or null while loading / when missing. */
+    readonly document: T | null
+    /** True until the initial fetch resolves. */
+    readonly loading:  boolean
+}
+
+/**
+ * Provide one shared current-route document to descendants (Svelte context);
+ * read it anywhere below with useCurrentDocument(). References resolve by
+ * default (`$` wildcard) — pass `expand: []` to opt out.
+ */
+export declare function provideCurrentDocument<T = unknown>(
+    options: ProvideCurrentDocumentOptions,
+): CurrentDocumentSlot<T>
+
+/** Read the shared current-route document from a provideCurrentDocument() ancestor. */
+export declare function useCurrentDocument<T = unknown>(): CurrentDocumentSlot<T>
+
 // ---------------------------------------------------------------------------
 // Routing helpers
 // ---------------------------------------------------------------------------
@@ -228,10 +266,10 @@ export declare function provideAssetIndex(
 
 export interface UseAssetResult {
     /**
-     * URL of a transcoded derivative by the assets() convention, baseUrl
-     * bound from the installed client. Needs no provideAssetIndex.
+     * Resolve a served ref to a deployed URL, baseUrl bound from the
+     * installed client. Needs no provideAssetIndex.
      */
-    assetUrl(source: string, preset: string, options?: AssetUrlOptions): string
+    url(ref?: string): string
     /**
      * Managed asset entity by reference → { url, meta } | null. Resolves
      * only when provideAssetIndex() is in a parent.
@@ -241,6 +279,12 @@ export interface UseAssetResult {
 }
 
 export declare function useAsset(): UseAssetResult
+
+/**
+ * Dev-mode load-failure warner: logs a warning when an <img>/<video>
+ * fails to load. Returns a teardown function. No-op outside a browser.
+ */
+export declare function watchAssetFallbacks(options?: { doc?: Document; warn?: (message: string) => void }): () => void
 
 // ---------------------------------------------------------------------------
 // vector() — semantic search (pairs with mikser-io-sdk-vector)
@@ -341,3 +385,30 @@ export interface UseMikserStatusResult {
  *   {#if status.current === 'ready'} ... {/if}
  */
 export declare function useMikserStatus(options?: UseMikserStatusOptions): UseMikserStatusResult
+
+// ---------------------------------------------------------------------------
+// Reactive content cache
+// ---------------------------------------------------------------------------
+
+/**
+ * Reactive wrapper over the sdk-api cache. Reads are tracked by Svelte's
+ * runes, so components re-render when cached content is loaded or
+ * invalidated.
+ */
+export interface ReactiveContentCache {
+    /** Fetch (and cache) the envelope for a query; resolves from cache when present. */
+    load(query?: object, options?: object): Promise<object>
+    /** Synchronously read a cached envelope without fetching, or undefined when absent. */
+    read(query?: object): object | undefined
+    /** Drop the cached envelope for the query and notify subscribers. */
+    invalidate(query?: object): void
+    /** Resolve a single document by href; references resolve by default (`$` wildcard, `expand: []` to opt out). */
+    document(href: string, options?: { expand?: string[] }): Promise<any | null>
+    /** Synchronous form of document() — returns the cached document or null. */
+    documentSync(href: string, options?: { expand?: string[] }): any | null
+    /** The underlying sdk-api cache instance. */
+    cache: any
+}
+
+/** Build a {@link ReactiveContentCache} over an entities client. */
+export declare function createReactiveCache(docs: any): ReactiveContentCache

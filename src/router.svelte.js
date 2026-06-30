@@ -16,6 +16,14 @@
 // "which routes exist" data; the consumer wires up +page.svelte files
 // (typically a single `[...path]/+page.svelte` that uses useDocument
 // to resolve the entity for the current URL).
+//
+// No watchUnmatchedRoutes here (the vue/react SDKs ship it): SvelteKit owns
+// route matching and surfaces its own 404 via +error.svelte, so there's no
+// route-table / no-match hook to attach to. The mikser-relevant "unmatched"
+// case — a URL with no catalog document — is already visible as a null
+// useDocument() in the catch-all `[...path]/+page.svelte`, so a detector
+// would duplicate a signal the consumer already has. Adding one would be a
+// contrived port of a vue/react mechanism that doesn't fit this model.
 import { useMikserClient } from './client.js'
 
 const DEFAULT_FILTER = { 'meta.published': true, 'meta.route': { $exists: true } }
