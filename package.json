@@ -1,48 +1,52 @@
 {
-    "name": "mikser-io-sdk-svelte",
-    "version": "0.10.1",
-    "description": "Svelte 5 runes and SvelteKit integration for mikser-io",
-    "type": "module",
-    "main": "index.js",
-    "svelte": "index.js",
-    "types": "index.d.ts",
-    "exports": {
-        ".": {
-            "types": "./index.d.ts",
-            "svelte": "./index.js",
-            "default": "./index.js"
-        },
-        "./src/*": "./src/*"
+  "name": "mikser-io-sdk-svelte",
+  "version": "0.10.1",
+  "description": "Svelte 5 runes and SvelteKit integration for mikser-io",
+  "type": "module",
+  "main": "index.js",
+  "svelte": "index.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "svelte": "./index.js",
+      "default": "./index.js"
     },
-    "files": [
-        "index.js",
-        "index.d.ts",
-        "src",
-        "README.md",
-        "LICENSE"
-    ],
-    "scripts": {},
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/almero-digital-marketing/mikser-io-sdk-svelte.git"
-    },
-    "keywords": [
-        "mikser",
-        "mikser-io",
-        "svelte",
-        "sveltekit",
-        "runes",
-        "sse",
-        "content"
-    ],
-    "author": "",
-    "license": "MIT",
-    "bugs": {
-        "url": "https://github.com/almero-digital-marketing/mikser-io-sdk-svelte/issues"
-    },
-    "homepage": "https://github.com/almero-digital-marketing/mikser-io-sdk-svelte#readme",
-    "peerDependencies": {
-        "mikser-io-sdk-api": "^3.7.0",
-        "svelte": "^5.0.0"
-    }
+    "./src/*": "./src/*"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/almero-digital-marketing/mikser-io-sdk-svelte.git"
+  },
+  "keywords": [
+    "mikser",
+    "mikser-io",
+    "svelte",
+    "sveltekit",
+    "runes",
+    "sse",
+    "content"
+  ],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/almero-digital-marketing/mikser-io-sdk-svelte/issues"
+  },
+  "homepage": "https://github.com/almero-digital-marketing/mikser-io-sdk-svelte#readme",
+  "peerDependencies": {
+    "mikser-io-sdk-api": "^3.7.0",
+    "svelte": "^5.0.0"
+  },
+  "devDependencies": {
+    "mikser-io-sdk-api": "^3.7.0",
+    "svelte": "^5.0.0"
+  }
 }
